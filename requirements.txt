@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+httpx
+beautifulsoup4
+lxml
+playwright
+playwright-stealth
+sqlalchemy[asyncio]
+aiosqlite
+openpyxl
+pydantic
+pydantic-settings
+python-dotenv
