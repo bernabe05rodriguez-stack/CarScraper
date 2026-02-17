@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auction Search - CarScraper</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">Car<span>Scraper</span></a>
+        <ul class="navbar-links">
+            <li><a href="/">Home</a></li>
+            <li><a href="/auctions" class="active">Auctions</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <!-- Search Form -->
+        <div class="card">
+            <h2 class="card-title">Search Auctions</h2>
+            <form id="search-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="make">Make</label>
+                        <select id="make" required>
+                            <option value="">Select Make...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="model">Model</label>
+                        <select id="model">
+                            <option value="">All Models</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="year-from">Year From</label>
+                        <select id="year-from">
+                            <option value="">Any</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="year-to">Year To</label>
+                        <select id="year-to">
+                            <option value="">Any</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="time-filter">Time Period</label>
+                        <select id="time-filter">
+                            <option value="5m">Last 5 Months</option>
+                            <option value="1y" selected>Last Year</option>
+                            <option value="2y">Last 2 Years</option>
+                            <option value="all">All Time</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="keyword">Keyword in Description</label>
+                        <input type="text" id="keyword" placeholder='e.g. "EURO", "manual"'>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600; color: var(--primary);">Platforms</label>
+                    <div class="checkbox-group" style="margin-top: 0.3rem;">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="platform" value="bat" checked>
+                            Bring a Trailer
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="platform" value="carsandbids" checked>
+                            Cars & Bids
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" id="search-btn">Search</button>
+                    <button type="button" class="btn btn-outline" id="clear-btn">Clear</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Progress -->
+        <div class="card progress-section" id="progress-section">
+            <h2 class="card-title">Searching...</h2>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+            </div>
+            <p class="progress-text" id="progress-text">Starting search...</p>
+        </div>
+
+        <!-- Results -->
+        <div class="results-section" id="results-section">
+            <!-- Stats -->
+            <div class="card">
+                <h2 class="card-title">Results Summary</h2>
+                <div class="stats-bar" id="stats-bar"></div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" id="export-btn" style="display:none;">Export to Excel</button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="card">
+                <div class="table-container">
+                    <table id="results-table">
+                        <thead>
+                            <tr>
+                                <th data-sort="year">Year <span class="sort-arrow">&#9650;</span></th>
+                                <th data-sort="make">Make <span class="sort-arrow">&#9650;</span></th>
+                                <th data-sort="model">Model <span class="sort-arrow">&#9650;</span></th>
+                                <th data-sort="starting_bid">Starting Bid <span class="sort-arrow">&#9650;</span></th>
+                                <th data-sort="sold_price">Sold Price <span class="sort-arrow">&#9650;</span></th>
+                                <th data-sort="auction_days">Auction Days <span class="sort-arrow">&#9650;</span></th>
+                                <th data-sort="bid_count">Bids <span class="sort-arrow">&#9650;</span></th>
+                                <th data-sort="times_listed">Times Listed <span class="sort-arrow">&#9650;</span></th>
+                                <th>Platform</th>
+                                <th>Link</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-body"></tbody>
+                    </table>
+                </div>
+                <div class="no-results" id="no-results" style="display:none;">
+                    No results found. Try adjusting your search criteria.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/job-poller.js"></script>
+    <script src="/js/auctions.js"></script>
+</body>
+</html>

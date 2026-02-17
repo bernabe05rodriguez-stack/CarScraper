@@ -1,0 +1,257 @@
+{
+  "Acura": [
+    "NSX",
+    "Integra Type R",
+    "RSX Type-S",
+    "TL",
+    "TSX"
+  ],
+  "Alfa Romeo": [
+    "4C",
+    "Giulia",
+    "Stelvio",
+    "Spider",
+    "GTV"
+  ],
+  "Aston Martin": [
+    "DB9",
+    "DB11",
+    "Vantage",
+    "Vanquish",
+    "DBS"
+  ],
+  "Audi": [
+    "R8",
+    "RS3",
+    "RS4",
+    "RS5",
+    "RS6",
+    "RS7",
+    "S4",
+    "S5",
+    "TT",
+    "A4",
+    "A6",
+    "Q5",
+    "Q7"
+  ],
+  "BMW": [
+    "M2",
+    "M3",
+    "M4",
+    "M5",
+    "M6",
+    "Z3",
+    "Z4",
+    "Z8",
+    "2002",
+    "E30",
+    "3 Series",
+    "5 Series",
+    "7 Series",
+    "X3",
+    "X5"
+  ],
+  "Chevrolet": [
+    "Corvette",
+    "Camaro",
+    "Chevelle",
+    "Nova",
+    "Impala",
+    "El Camino",
+    "Blazer",
+    "C10"
+  ],
+  "Dodge": [
+    "Viper",
+    "Challenger",
+    "Charger",
+    "Dart",
+    "Demon"
+  ],
+  "Ferrari": [
+    "F40",
+    "F50",
+    "308",
+    "328",
+    "348",
+    "355",
+    "360",
+    "430",
+    "458",
+    "488",
+    "F12",
+    "Roma",
+    "SF90",
+    "Testarossa"
+  ],
+  "Ford": [
+    "Mustang",
+    "GT",
+    "Bronco",
+    "F-150",
+    "Raptor",
+    "Focus RS",
+    "Thunderbird",
+    "Shelby GT350",
+    "Shelby GT500"
+  ],
+  "Honda": [
+    "S2000",
+    "Civic Type R",
+    "NSX",
+    "Prelude",
+    "CRX",
+    "Accord"
+  ],
+  "Jaguar": [
+    "E-Type",
+    "F-Type",
+    "XJ",
+    "XJS",
+    "XK"
+  ],
+  "Lamborghini": [
+    "Huracan",
+    "Aventador",
+    "Gallardo",
+    "Murcielago",
+    "Diablo",
+    "Countach"
+  ],
+  "Land Rover": [
+    "Defender",
+    "Range Rover",
+    "Discovery"
+  ],
+  "Lexus": [
+    "LFA",
+    "LC500",
+    "IS F",
+    "RC F",
+    "GS F",
+    "IS300"
+  ],
+  "Lotus": [
+    "Elise",
+    "Exige",
+    "Evora",
+    "Esprit",
+    "Emira"
+  ],
+  "Maserati": [
+    "GranTurismo",
+    "Quattroporte",
+    "MC20",
+    "Ghibli"
+  ],
+  "Mazda": [
+    "Miata",
+    "RX-7",
+    "RX-8",
+    "Cosmo",
+    "MX-5"
+  ],
+  "McLaren": [
+    "720S",
+    "570S",
+    "600LT",
+    "P1",
+    "F1",
+    "Artura",
+    "GT"
+  ],
+  "Mercedes-Benz": [
+    "SL",
+    "SLS AMG",
+    "AMG GT",
+    "C63 AMG",
+    "E63 AMG",
+    "G-Wagon",
+    "190E",
+    "300SL",
+    "S-Class",
+    "G-Class"
+  ],
+  "Mini": [
+    "Cooper",
+    "Cooper S",
+    "JCW",
+    "Clubman"
+  ],
+  "Mitsubishi": [
+    "Lancer Evolution",
+    "3000GT",
+    "Eclipse"
+  ],
+  "Nissan": [
+    "GT-R",
+    "370Z",
+    "350Z",
+    "300ZX",
+    "240SX",
+    "Skyline",
+    "Silvia"
+  ],
+  "Porsche": [
+    "911",
+    "718",
+    "944",
+    "928",
+    "930",
+    "964",
+    "993",
+    "996",
+    "997",
+    "Boxster",
+    "Cayman",
+    "Cayenne",
+    "Macan",
+    "Taycan",
+    "Panamera",
+    "Carrera GT"
+  ],
+  "Subaru": [
+    "WRX STI",
+    "WRX",
+    "BRZ",
+    "Impreza",
+    "Forester"
+  ],
+  "Tesla": [
+    "Model S",
+    "Model 3",
+    "Model X",
+    "Model Y",
+    "Roadster",
+    "Cybertruck"
+  ],
+  "Toyota": [
+    "Supra",
+    "MR2",
+    "Celica",
+    "AE86",
+    "Land Cruiser",
+    "4Runner",
+    "GR86",
+    "GR Corolla",
+    "Tundra"
+  ],
+  "Volkswagen": [
+    "Golf R",
+    "Golf GTI",
+    "Beetle",
+    "Bus",
+    "Corrado",
+    "Phaeton",
+    "R32"
+  ],
+  "Volvo": [
+    "P1800",
+    "240",
+    "850",
+    "V60",
+    "S60",
+    "XC90"
+  ]
+}
