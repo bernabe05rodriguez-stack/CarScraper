@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     DATA_DIR: Path = BASE_DIR / "data"
     FRONTEND_DIR: Path = BASE_DIR.parent / "frontend"
 
-    model_config = {"env_file": ".env", "extra": "ignore"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()
