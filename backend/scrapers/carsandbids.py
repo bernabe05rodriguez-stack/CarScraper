@@ -35,9 +35,19 @@ class CarsAndBidsScraper(BaseScraper):
             title = item.get("title", "")
             year, make, model = self._parse_title(title)
 
-            sold_price = item.get("sold_price") or item.get("price")
-            if isinstance(sold_price, str):
-                sold_price = self._parse_price(sold_price)
+            # Determine sold status first
+            is_sold = item.get("status", "").lower() in ("sold", "completed")
+
+            # Parse sold_price, handling text values like "Not Sold" or "Bid to $X"
+            sold_price_raw = item.get("sold_price") or item.get("price")
+            if isinstance(sold_price_raw, str):
+                if "not sold" in sold_price_raw.lower() or "bid to" in sold_price_raw.lower():
+                    is_sold = False
+                    sold_price = self._parse_price(sold_price_raw)  # extract bid amount
+                else:
+                    sold_price = self._parse_price(sold_price_raw)
+            else:
+                sold_price = sold_price_raw
 
             bid_count = item.get("bid_count") or item.get("bids")
             if isinstance(bid_count, str):
@@ -48,17 +58,12 @@ class CarsAndBidsScraper(BaseScraper):
             if url and not url.startswith("http"):
                 url = f"{self.BASE_URL}{url}"
 
-            is_sold = item.get("status", "").lower() in ("sold", "completed")
-            if "sold" in str(item.get("sold_price", "")).lower():
-                is_sold = False
-                sold_price = None
-
             return {
                 "year": year or item.get("year"),
                 "make": make or item.get("make"),
                 "model": model or item.get("model"),
                 "sold_price": sold_price if is_sold else None,
-                "starting_bid": sold_price if not is_sold else None,
+                "starting_bid": sold_price if not is_sold else None,  # bid amount for unsold
                 "bid_count": bid_count,
                 "url": url,
                 "image_url": item.get("image") or item.get("photo_url") or item.get("thumbnail"),

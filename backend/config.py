@@ -3,11 +3,14 @@ from pathlib import Path
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "sqlite+aiosqlite:///./carscraper.db"
+    DATABASE_URL: str = "postgresql+asyncpg://carscraper:carscraper@localhost:5432/carscraper"
     CACHE_TTL_HOURS: int = 6
     MIN_SCRAPE_DELAY: int = 3
     MAX_SCRAPE_DELAY: int = 8
     DEBUG: bool = False
+    EUR_USD_RATE: float = 1.08
+    EUR_USD_API: str = "https://api.frankfurter.app/latest?from=EUR&to=USD"
+    SCHEDULER_INTERVAL_HOURS: int = 12
 
     BASE_DIR: Path = Path(__file__).resolve().parent
     DATA_DIR: Path = BASE_DIR / "data"

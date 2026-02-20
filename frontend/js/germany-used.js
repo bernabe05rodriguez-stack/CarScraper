@@ -1,4 +1,4 @@
-// Auctions page logic
+// Germany Used Cars page logic
 
 (function () {
     const makeSelect = document.getElementById('make');
@@ -23,7 +23,6 @@
     let sortField = null;
     let sortAsc = true;
 
-    // Init
     loadMakes();
     populateYears();
 
@@ -45,7 +44,6 @@
         modelSelect.innerHTML = '<option value="">All Models</option>';
         const make = makeSelect.value;
         if (!make) return;
-
         try {
             const models = await API.getModels(make);
             models.forEach(m => {
@@ -62,36 +60,19 @@
     function populateYears() {
         const currentYear = new Date().getFullYear() + 1;
         for (let y = currentYear; y >= 1950; y--) {
-            const opt1 = document.createElement('option');
-            opt1.value = y;
-            opt1.textContent = y;
-            yearFromSelect.appendChild(opt1);
-
-            const opt2 = document.createElement('option');
-            opt2.value = y;
-            opt2.textContent = y;
-            yearToSelect.appendChild(opt2);
+            yearFromSelect.appendChild(new Option(y, y));
+            yearToSelect.appendChild(new Option(y, y));
         }
     }
 
-    // Search
     searchForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-
         const make = makeSelect.value;
-        if (!make) {
-            alert('Please select a make');
-            return;
-        }
+        if (!make) { alert('Please select a make'); return; }
 
         const platforms = [];
-        document.querySelectorAll('input[name="platform"]:checked').forEach(cb => {
-            platforms.push(cb.value);
-        });
-        if (platforms.length === 0) {
-            alert('Please select at least one platform');
-            return;
-        }
+        document.querySelectorAll('input[name="platform"]:checked').forEach(cb => platforms.push(cb.value));
+        if (platforms.length === 0) { alert('Please select at least one platform'); return; }
 
         const params = {
             make: make,
@@ -99,8 +80,8 @@
             year_from: yearFromSelect.value ? parseInt(yearFromSelect.value) : null,
             year_to: yearToSelect.value ? parseInt(yearToSelect.value) : null,
             keyword: document.getElementById('keyword').value || null,
-            time_filter: document.getElementById('time-filter').value,
             platforms: platforms,
+            region: 'germany',
         };
 
         await startSearch(params);
@@ -115,7 +96,7 @@
         progressText.textContent = 'Starting search...';
 
         try {
-            const response = await API.searchAuctions(params);
+            const response = await API.searchUsedCars(params);
             currentJobId = response.job_id;
 
             if (response.cached) {
@@ -142,7 +123,6 @@
                 },
             });
             currentPoller.start();
-
         } catch (err) {
             progressText.textContent = 'Error: ' + err.message;
             searchBtn.disabled = false;
@@ -152,20 +132,16 @@
 
     async function loadResults(jobId) {
         try {
-            const data = await API.getAuctionResults(jobId);
+            const data = await API.getUsedCarResults(jobId);
             allListings = data.listings;
-
             renderStats(data.stats);
             renderTable(allListings);
             resultsSection.classList.add('active');
 
             if (allListings.length > 0) {
                 exportBtn.style.display = 'inline-flex';
-                exportBtn.onclick = () => {
-                    window.open(API.getExportUrl(jobId), '_blank');
-                };
+                exportBtn.onclick = () => window.open(API.getExportUrl(jobId), '_blank');
             }
-
         } catch (err) {
             console.error('Failed to load results:', err);
         } finally {
@@ -175,34 +151,25 @@
     }
 
     function renderStats(stats) {
-        if (!stats) {
-            statsBar.innerHTML = '';
-            return;
-        }
+        if (!stats) { statsBar.innerHTML = ''; return; }
         let html = '';
         if (stats.total_listings != null) {
             html += `<div class="stat-item"><strong>${stats.total_listings}</strong> Total Listings</div>`;
         }
-        if (stats.total_sold != null) {
-            html += `<div class="stat-item"><strong>${stats.total_sold}</strong> Sold</div>`;
+        if (stats.mean_list_price != null) {
+            html += `<div class="stat-item">Mean Price: <strong>${formatCurrency(stats.mean_list_price, 'EUR')}</strong></div>`;
         }
-        if (stats.sell_through_rate != null) {
-            html += `<div class="stat-item"><strong>${stats.sell_through_rate}%</strong> Sell-Through</div>`;
+        if (stats.median_list_price != null) {
+            html += `<div class="stat-item">Median Price: <strong>${formatCurrency(stats.median_list_price, 'EUR')}</strong></div>`;
         }
-        if (stats.mean_sold_price != null) {
-            html += `<div class="stat-item">Mean Price: <strong>${formatCurrency(stats.mean_sold_price)}</strong></div>`;
+        if (stats.min_list_price != null && stats.max_list_price != null) {
+            html += `<div class="stat-item">Range: <strong>${formatCurrency(stats.min_list_price, 'EUR')}</strong> - <strong>${formatCurrency(stats.max_list_price, 'EUR')}</strong></div>`;
         }
-        if (stats.median_sold_price != null) {
-            html += `<div class="stat-item">Median Price: <strong>${formatCurrency(stats.median_sold_price)}</strong></div>`;
+        if (stats.mean_days_on_market != null) {
+            html += `<div class="stat-item">Mean Days on Market: <strong>${stats.mean_days_on_market}</strong></div>`;
         }
-        if (stats.min_sold_price != null && stats.max_sold_price != null) {
-            html += `<div class="stat-item">Range: <strong>${formatCurrency(stats.min_sold_price)}</strong> - <strong>${formatCurrency(stats.max_sold_price)}</strong></div>`;
-        }
-        if (stats.mean_bids != null) {
-            html += `<div class="stat-item">Mean Bids: <strong>${stats.mean_bids}</strong></div>`;
-        }
-        if (stats.mean_auction_days != null) {
-            html += `<div class="stat-item">Mean Auction Days: <strong>${stats.mean_auction_days}</strong></div>`;
+        if (stats.mean_mileage != null) {
+            html += `<div class="stat-item">Mean Mileage: <strong>${formatNumber(stats.mean_mileage)} km</strong></div>`;
         }
         statsBar.innerHTML = html;
     }
@@ -220,47 +187,38 @@
                 <td>${l.year || '-'}</td>
                 <td>${escapeHtml(l.make) || '-'}</td>
                 <td>${escapeHtml(l.model) || '-'}</td>
-                <td>${formatCurrency(l.starting_bid)}</td>
-                <td>${formatCurrency(l.sold_price)}</td>
-                <td>${l.auction_days != null ? l.auction_days : '-'}</td>
-                <td>${l.bid_count != null ? formatNumber(l.bid_count) : '-'}</td>
-                <td>${l.times_listed != null ? l.times_listed : '-'}</td>
+                <td>${escapeHtml(l.trim) || '-'}</td>
+                <td>${formatCurrency(l.list_price, 'EUR')}</td>
+                <td>${l.mileage != null ? formatNumber(l.mileage) : '-'}</td>
+                <td>${l.days_on_market != null ? l.days_on_market : '-'}</td>
+                <td>${escapeHtml(l.dealer_name) || '-'}</td>
                 <td>${escapeHtml(l.platform)}</td>
                 <td>${l.url ? `<a href="${escapeHtml(l.url)}" target="_blank" rel="noopener">View</a>` : '-'}</td>
             </tr>
         `).join('');
     }
 
-    // Column sorting
     document.querySelectorAll('th[data-sort]').forEach(th => {
         th.addEventListener('click', () => {
             const field = th.dataset.sort;
-            if (sortField === field) {
-                sortAsc = !sortAsc;
-            } else {
-                sortField = field;
-                sortAsc = true;
-            }
+            if (sortField === field) { sortAsc = !sortAsc; }
+            else { sortField = field; sortAsc = true; }
 
             document.querySelectorAll('th[data-sort]').forEach(h => h.classList.remove('sorted'));
             th.classList.add('sorted');
             th.querySelector('.sort-arrow').textContent = sortAsc ? '\u25B2' : '\u25BC';
 
             const sorted = [...allListings].sort((a, b) => {
-                let va = a[field];
-                let vb = b[field];
+                let va = a[field], vb = b[field];
                 if (va == null) va = sortAsc ? Infinity : -Infinity;
                 if (vb == null) vb = sortAsc ? Infinity : -Infinity;
-                if (typeof va === 'string') {
-                    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
-                }
+                if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
                 return sortAsc ? va - vb : vb - va;
             });
             renderTable(sorted);
         });
     });
 
-    // Clear
     clearBtn.addEventListener('click', () => {
         searchForm.reset();
         modelSelect.innerHTML = '<option value="">All Models</option>';

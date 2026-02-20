@@ -6,6 +6,7 @@ lxml
 playwright
 playwright-stealth
 sqlalchemy[asyncio]
+asyncpg
 aiosqlite
 openpyxl
 pydantic

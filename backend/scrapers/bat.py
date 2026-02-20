@@ -99,6 +99,9 @@ class BaTScraper(BaseScraper):
             if "not sold" in result_text or "bid to" in result_text:
                 is_sold = False
 
+            # NOTE: BaT listing cards show only the final result price.
+            # For sold items, this is the sold price. For unsold, it's the highest bid.
+            # The starting bid is only available on individual listing pages.
             return {
                 "year": year,
                 "make": make,

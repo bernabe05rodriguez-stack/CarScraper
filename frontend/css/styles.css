@@ -408,6 +408,59 @@ td a:hover {
     color: var(--text-light);
 }
 
+/* Comparison page */
+.comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.comparison-panel {
+    border-top: 4px solid var(--primary);
+}
+
+.comparison-panel:first-child {
+    border-top-color: var(--accent);
+}
+
+.comparison-stat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.comparison-stat {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.95rem;
+}
+
+.comparison-stat span {
+    color: var(--text-light);
+}
+
+.arbitrage-result {
+    text-align: center;
+    padding: 1rem 0;
+}
+
+.arbitrage-delta {
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.arbitrage-direction {
+    font-size: 1.1rem;
+    margin-top: 0.5rem;
+}
+
+.arbitrage-detail {
+    font-size: 0.85rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .navbar {
@@ -424,5 +477,14 @@ td a:hover {
 
     .hero h1 {
         font-size: 1.6rem;
+    }
+
+    .comparison-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .navbar-links {
+        gap: 0.8rem;
+        font-size: 0.85rem;
     }
 }

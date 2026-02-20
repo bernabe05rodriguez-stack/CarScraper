@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Comparison - CarScraper</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">Car<span>Scraper</span></a>
+        <ul class="navbar-links">
+            <li><a href="/">Home</a></li>
+            <li><a href="/auctions">Auctions</a></li>
+            <li><a href="/usa-used">USA Used Cars</a></li>
+            <li><a href="/germany-used">Germany Used Cars</a></li>
+            <li><a href="/comparison" class="active">Comparison</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <!-- Search Form -->
+        <div class="card">
+            <h2 class="card-title">Price Comparison: USA vs Germany</h2>
+            <p style="color: var(--text-light); margin-bottom: 1rem;">Compare average prices between USA and German markets to identify arbitrage opportunities. Uses historical data from previous searches.</p>
+            <form id="compare-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="make">Make</label>
+                        <select id="make" required>
+                            <option value="">Select Make...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="model">Model</label>
+                        <select id="model">
+                            <option value="">All Models</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="year-from">Year From</label>
+                        <select id="year-from">
+                            <option value="">Any</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="year-to">Year To</label>
+                        <select id="year-to">
+                            <option value="">Any</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" id="compare-btn">Compare</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Results -->
+        <div id="results-section" class="results-section">
+            <!-- Comparison Panels -->
+            <div class="comparison-grid" id="comparison-grid">
+                <!-- USA Panel -->
+                <div class="card comparison-panel" id="usa-panel">
+                    <h3 class="card-title">USA Market</h3>
+                    <div id="usa-stats"></div>
+                </div>
+
+                <!-- Germany Panel -->
+                <div class="card comparison-panel" id="germany-panel">
+                    <h3 class="card-title">Germany Market</h3>
+                    <div id="germany-stats"></div>
+                </div>
+            </div>
+
+            <!-- Arbitrage Summary -->
+            <div class="card" id="arbitrage-card">
+                <h3 class="card-title">Arbitrage Analysis</h3>
+                <div id="arbitrage-summary"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/comparison.js"></script>
+</body>
+</html>

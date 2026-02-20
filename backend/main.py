@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -14,6 +15,9 @@ from backend.db.database import async_session
 from backend.api.routes_auctions import router as auctions_router
 from backend.api.routes_jobs import router as jobs_router
 from backend.api.routes_export import router as export_router
+from backend.api.routes_used_cars import router as used_cars_router
+from backend.api.routes_comparison import router as comparison_router
+from backend.services.scheduler import run_scheduled_scrapes
 
 logging.basicConfig(
     level=logging.DEBUG if settings.DEBUG else logging.INFO,
@@ -26,15 +30,21 @@ async def lifespan(app: FastAPI):
     await init_db()
     async with async_session() as db:
         await seed_platforms(db)
+
+    # Start background scheduler for historical data collection
+    scheduler_task = asyncio.create_task(run_scheduled_scrapes())
     yield
+    scheduler_task.cancel()
 
 
-app = FastAPI(title="CarScraper", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="CarScraper", version="0.2.0", lifespan=lifespan)
 
 # API routes
 app.include_router(auctions_router)
 app.include_router(jobs_router)
 app.include_router(export_router)
+app.include_router(used_cars_router)
+app.include_router(comparison_router)
 
 
 # Makes/models endpoints
@@ -72,3 +82,18 @@ async def serve_index():
 @app.get("/auctions")
 async def serve_auctions():
     return FileResponse(str(frontend_dir / "auctions.html"))
+
+
+@app.get("/usa-used")
+async def serve_usa_used():
+    return FileResponse(str(frontend_dir / "usa-used.html"))
+
+
+@app.get("/germany-used")
+async def serve_germany_used():
+    return FileResponse(str(frontend_dir / "germany-used.html"))
+
+
+@app.get("/comparison")
+async def serve_comparison():
+    return FileResponse(str(frontend_dir / "comparison.html"))

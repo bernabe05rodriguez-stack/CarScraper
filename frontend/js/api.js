@@ -25,6 +25,7 @@ const API = {
         return resp.json();
     },
 
+    // Makes/Models
     async getMakes() {
         return this.get('/makes');
     },
@@ -33,18 +34,35 @@ const API = {
         return this.get('/models/' + encodeURIComponent(make));
     },
 
+    // Auctions
     async searchAuctions(params) {
         return this.post('/auctions/search', params);
-    },
-
-    async getJobStatus(jobId) {
-        return this.get('/jobs/' + jobId);
     },
 
     async getAuctionResults(jobId) {
         return this.get('/auctions/results/' + jobId);
     },
 
+    // Used Cars
+    async searchUsedCars(params) {
+        return this.post('/used-cars/search', params);
+    },
+
+    async getUsedCarResults(jobId) {
+        return this.get('/used-cars/results/' + jobId);
+    },
+
+    // Comparison
+    async analyzeComparison(params) {
+        return this.post('/comparison/analyze', params);
+    },
+
+    // Jobs
+    async getJobStatus(jobId) {
+        return this.get('/jobs/' + jobId);
+    },
+
+    // Export
     getExportUrl(jobId) {
         return this.BASE + '/export/' + jobId;
     },

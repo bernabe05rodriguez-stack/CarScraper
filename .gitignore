@@ -3,3 +3,6 @@ __pycache__/
 *.db
 .env
 create_repo.ps1
+data/*.db
+node_modules/
+.venv/

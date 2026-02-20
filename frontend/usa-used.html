@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auction Search - CarScraper</title>
+    <title>USA Used Cars - CarScraper</title>
     <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
@@ -11,8 +11,8 @@
         <a href="/" class="navbar-brand">Car<span>Scraper</span></a>
         <ul class="navbar-links">
             <li><a href="/">Home</a></li>
-            <li><a href="/auctions" class="active">Auctions</a></li>
-            <li><a href="/usa-used">USA Used Cars</a></li>
+            <li><a href="/auctions">Auctions</a></li>
+            <li><a href="/usa-used" class="active">USA Used Cars</a></li>
             <li><a href="/germany-used">Germany Used Cars</a></li>
             <li><a href="/comparison">Comparison</a></li>
         </ul>
@@ -21,7 +21,7 @@
     <div class="container">
         <!-- Search Form -->
         <div class="card">
-            <h2 class="card-title">Search Auctions</h2>
+            <h2 class="card-title">Search USA Used Cars</h2>
             <form id="search-form">
                 <div class="form-grid">
                     <div class="form-group">
@@ -49,17 +49,8 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="time-filter">Time Period</label>
-                        <select id="time-filter">
-                            <option value="5m">Last 5 Months</option>
-                            <option value="1y" selected>Last Year</option>
-                            <option value="2y">Last 2 Years</option>
-                            <option value="all">All Time</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
                         <label for="keyword">Keyword in Description</label>
-                        <input type="text" id="keyword" placeholder='e.g. "EURO", "manual"'>
+                        <input type="text" id="keyword" placeholder='e.g. "manual", "low miles"'>
                     </div>
                 </div>
 
@@ -67,12 +58,12 @@
                     <label style="font-size: 0.85rem; font-weight: 600; color: var(--primary);">Platforms</label>
                     <div class="checkbox-group" style="margin-top: 0.3rem;">
                         <label class="checkbox-label">
-                            <input type="checkbox" name="platform" value="bat" checked>
-                            Bring a Trailer
+                            <input type="checkbox" name="platform" value="autotrader" checked>
+                            Autotrader
                         </label>
                         <label class="checkbox-label">
-                            <input type="checkbox" name="platform" value="carsandbids" checked>
-                            Cars & Bids
+                            <input type="checkbox" name="platform" value="carscom" checked>
+                            Cars.com
                         </label>
                     </div>
                 </div>
@@ -113,11 +104,11 @@
                                 <th data-sort="year">Year <span class="sort-arrow">&#9650;</span></th>
                                 <th data-sort="make">Make <span class="sort-arrow">&#9650;</span></th>
                                 <th data-sort="model">Model <span class="sort-arrow">&#9650;</span></th>
-                                <th data-sort="starting_bid">Starting Bid <span class="sort-arrow">&#9650;</span></th>
-                                <th data-sort="sold_price">Sold Price <span class="sort-arrow">&#9650;</span></th>
-                                <th data-sort="auction_days">Auction Days <span class="sort-arrow">&#9650;</span></th>
-                                <th data-sort="bid_count">Bids <span class="sort-arrow">&#9650;</span></th>
-                                <th data-sort="times_listed">Times Listed <span class="sort-arrow">&#9650;</span></th>
+                                <th data-sort="trim">Trim <span class="sort-arrow">&#9650;</span></th>
+                                <th data-sort="list_price">List Price <span class="sort-arrow">&#9650;</span></th>
+                                <th data-sort="mileage">Mileage <span class="sort-arrow">&#9650;</span></th>
+                                <th data-sort="days_on_market">Days on Market <span class="sort-arrow">&#9650;</span></th>
+                                <th data-sort="dealer_name">Dealer <span class="sort-arrow">&#9650;</span></th>
                                 <th>Platform</th>
                                 <th>Link</th>
                             </tr>
@@ -135,6 +126,6 @@
     <script src="/js/utils.js"></script>
     <script src="/js/api.js"></script>
     <script src="/js/job-poller.js"></script>
-    <script src="/js/auctions.js"></script>
+    <script src="/js/usa-used.js"></script>
 </body>
 </html>

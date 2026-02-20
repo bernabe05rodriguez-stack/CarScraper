@@ -44,6 +44,37 @@ class AuctionListing(Base):
     )
 
 
+class UsedCarListing(Base):
+    __tablename__ = "used_car_listings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    platform_id = Column(Integer, ForeignKey("platforms.id"), nullable=False)
+    job_id = Column(Integer, ForeignKey("scrape_jobs.id"), nullable=False)
+    year = Column(Integer)
+    make = Column(String(100))
+    model = Column(String(200))
+    trim = Column(String(200))
+    list_price = Column(Float)
+    mileage = Column(Integer)
+    days_on_market = Column(Integer)
+    dealer_name = Column(String(300))
+    location = Column(String(300))
+    description = Column(Text)
+    url = Column(String(1000))
+    image_url = Column(String(1000))
+    listing_date = Column(DateTime)
+    is_active = Column(Boolean, default=True)
+    currency = Column(String(10), default="USD")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_usedcar_make_model", "make", "model"),
+        Index("ix_usedcar_year", "year"),
+        Index("ix_usedcar_job_id", "job_id"),
+        Index("ix_usedcar_platform_id", "platform_id"),
+    )
+
+
 class ScrapeJob(Base):
     __tablename__ = "scrape_jobs"
 
@@ -53,6 +84,7 @@ class ScrapeJob(Base):
     total_results = Column(Integer, default=0)
     platforms_requested = Column(String(500))  # comma-separated
     search_params = Column(Text)  # JSON
+    job_type = Column(String(50), default="auction")  # "auction" or "used_car"
     error_message = Column(Text)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     completed_at = Column(DateTime)
@@ -66,3 +98,18 @@ class SearchCache(Base):
     job_id = Column(Integer, ForeignKey("scrape_jobs.id"))
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime, nullable=False)
+
+
+class WatchList(Base):
+    __tablename__ = "watch_list"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    make = Column(String(100), nullable=False)
+    model = Column(String(200))
+    year_from = Column(Integer)
+    year_to = Column(Integer)
+    platforms = Column(String(500))  # comma-separated
+    interval_hours = Column(Integer, default=12)
+    is_active = Column(Boolean, default=True)
+    last_run_at = Column(DateTime)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

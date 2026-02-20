@@ -4,22 +4,29 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db.models import Platform, AuctionListing, ScrapeJob, SearchCache
+from backend.db.models import Platform, AuctionListing, UsedCarListing, ScrapeJob, SearchCache
 from backend.config import settings
 
 
 # --- Platforms ---
 
 async def seed_platforms(db: AsyncSession):
-    existing = await db.execute(select(func.count(Platform.id)))
-    if existing.scalar() > 0:
-        return
-
-    platforms = [
+    platforms_to_seed = [
+        # Auction platforms
         Platform(name="Bring a Trailer", platform_type="auction", region="USA", base_url="https://bringatrailer.com"),
         Platform(name="Cars & Bids", platform_type="auction", region="USA", base_url="https://carsandbids.com"),
+        # USA used car platforms
+        Platform(name="Autotrader", platform_type="used_car", region="USA", base_url="https://www.autotrader.com"),
+        Platform(name="Cars.com", platform_type="used_car", region="USA", base_url="https://www.cars.com"),
+        # Germany used car platforms
+        Platform(name="Mobile.de", platform_type="used_car", region="Germany", base_url="https://www.mobile.de"),
+        Platform(name="AutoScout24", platform_type="used_car", region="Germany", base_url="https://www.autoscout24.de"),
+        Platform(name="eBay Kleinanzeigen", platform_type="used_car", region="Germany", base_url="https://www.kleinanzeigen.de"),
     ]
-    db.add_all(platforms)
+    for p in platforms_to_seed:
+        existing = await db.execute(select(Platform).where(Platform.name == p.name))
+        if not existing.scalar_one_or_none():
+            db.add(p)
     await db.commit()
 
 
@@ -30,10 +37,11 @@ async def get_platform_by_name(db: AsyncSession, name: str) -> Platform | None:
 
 # --- Jobs ---
 
-async def create_job(db: AsyncSession, platforms: list[str], search_params: dict) -> ScrapeJob:
+async def create_job(db: AsyncSession, platforms: list[str], search_params: dict, job_type: str = "auction") -> ScrapeJob:
     job = ScrapeJob(
         platforms_requested=",".join(platforms),
         search_params=json.dumps(search_params),
+        job_type=job_type,
     )
     db.add(job)
     await db.commit()
@@ -99,6 +107,68 @@ async def get_listings_by_job(db: AsyncSession, job_id: int) -> list[AuctionList
         .where(AuctionListing.job_id == job_id)
         .order_by(AuctionListing.auction_end_date.desc().nullslast())
     )
+    return list(result.scalars().all())
+
+
+# --- Used Car Listings ---
+
+async def add_used_car_listings(db: AsyncSession, listings: list[dict], job_id: int, platform_id: int):
+    for data in listings:
+        listing = UsedCarListing(
+            platform_id=platform_id,
+            job_id=job_id,
+            year=data.get("year"),
+            make=data.get("make"),
+            model=data.get("model"),
+            trim=data.get("trim"),
+            list_price=data.get("list_price"),
+            mileage=data.get("mileage"),
+            days_on_market=data.get("days_on_market"),
+            dealer_name=data.get("dealer_name"),
+            location=data.get("location"),
+            description=data.get("description"),
+            url=data.get("url"),
+            image_url=data.get("image_url"),
+            listing_date=data.get("listing_date"),
+            is_active=data.get("is_active", True),
+            currency=data.get("currency", "USD"),
+        )
+        db.add(listing)
+    await db.commit()
+
+
+async def get_used_car_listings_by_job(db: AsyncSession, job_id: int) -> list[UsedCarListing]:
+    result = await db.execute(
+        select(UsedCarListing)
+        .where(UsedCarListing.job_id == job_id)
+        .order_by(UsedCarListing.list_price.desc().nullslast())
+    )
+    return list(result.scalars().all())
+
+
+async def get_used_car_listings_by_region(
+    db: AsyncSession,
+    make: str,
+    model: str | None = None,
+    year_from: int | None = None,
+    year_to: int | None = None,
+    region: str | None = None,
+) -> list[UsedCarListing]:
+    """Query historical used car listings filtered by region/make/model/year."""
+    query = select(UsedCarListing).join(Platform, UsedCarListing.platform_id == Platform.id)
+
+    if region:
+        query = query.where(Platform.region == region)
+    if make:
+        query = query.where(UsedCarListing.make == make)
+    if model:
+        query = query.where(UsedCarListing.model == model)
+    if year_from:
+        query = query.where(UsedCarListing.year >= year_from)
+    if year_to:
+        query = query.where(UsedCarListing.year <= year_to)
+
+    result = await db.execute(query.order_by(UsedCarListing.created_at.desc()))
     return list(result.scalars().all())
 
 
