@@ -49,7 +49,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled error on {request.method} {request.url.path}: {exc}\n{tb}")
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc), "traceback": tb},
+        content={"detail": str(exc)},
     )
 
 
