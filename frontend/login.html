@@ -7,80 +7,117 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        :root {
+            --login-bg: #f5f5f5;
+            --login-card: #fff;
+            --login-input-bg: #fff;
+            --login-input-border: #ddd;
+            --login-text: #1a1a1a;
+            --login-label: #888;
+            --login-placeholder: #bbb;
+            --login-shadow: 0 8px 30px rgba(0,0,0,0.08);
+            --login-border: #e5e5e5;
+        }
+
+        [data-theme="dark"] {
+            --login-bg: #0f0f0f;
+            --login-card: #1a1a1a;
+            --login-input-bg: #111;
+            --login-input-border: #2a2a2a;
+            --login-text: #e5e5e5;
+            --login-label: #999;
+            --login-placeholder: #444;
+            --login-shadow: 0 25px 60px rgba(0,0,0,0.5);
+            --login-border: rgba(255,255,255,0.06);
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #0f0f0f;
-            background-image:
-                radial-gradient(ellipse at 20% 50%, rgba(220, 38, 38, 0.08) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 50%, rgba(220, 38, 38, 0.05) 0%, transparent 50%);
+            background: var(--login-bg);
+            transition: background 0.2s;
         }
 
         .login-card {
             width: 380px;
             padding: 48px 40px 40px;
-            background: #1a1a1a;
+            background: var(--login-card);
             border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.06);
-            box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+            border: 1px solid var(--login-border);
+            box-shadow: var(--login-shadow);
+            position: relative;
+            transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
         }
 
-        .logo {
-            text-align: center;
-            margin-bottom: 8px;
+        .btn-theme {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: transparent;
+            border: 1px solid var(--login-input-border);
+            color: var(--login-label);
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            padding: 0;
         }
+        .btn-theme:hover { border-color: #dc2626; color: #dc2626; }
+
+        .logo { text-align: center; margin-bottom: 8px; }
 
         .logo h1 {
             font-size: 28px;
             font-weight: 700;
-            color: #fff;
+            color: var(--login-text);
             letter-spacing: -0.5px;
         }
 
-        .logo h1 span {
-            color: #dc2626;
-        }
+        .logo h1 span { color: #dc2626; }
 
         .subtitle {
             text-align: center;
-            color: #666;
+            color: var(--login-label);
             font-size: 14px;
             margin-bottom: 36px;
         }
 
-        .field {
-            margin-bottom: 20px;
-        }
+        .field { margin-bottom: 20px; }
 
         .field label {
             display: block;
             font-size: 13px;
             font-weight: 500;
-            color: #999;
+            color: var(--login-label);
             margin-bottom: 8px;
         }
 
         .field input {
             width: 100%;
             padding: 12px 16px;
-            background: #111;
-            border: 1px solid #2a2a2a;
+            background: var(--login-input-bg);
+            border: 1px solid var(--login-input-border);
             border-radius: 10px;
-            color: #fff;
+            color: var(--login-text);
             font-size: 15px;
             font-family: inherit;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
         }
 
-        .field input::placeholder { color: #444; }
+        .field input::placeholder { color: var(--login-placeholder); }
 
         .field input:focus {
             outline: none;
             border-color: #dc2626;
-            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
         }
 
         .login-btn {
@@ -103,23 +140,28 @@
         .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
         .error-msg {
-            background: rgba(220, 38, 38, 0.1);
-            color: #f87171;
+            background: rgba(220, 38, 38, 0.08);
+            color: #ef4444;
             padding: 10px 14px;
             border-radius: 8px;
             font-size: 13px;
             text-align: center;
             margin-bottom: 8px;
-            border: 1px solid rgba(220, 38, 38, 0.2);
+            border: 1px solid rgba(220, 38, 38, 0.15);
         }
 
         @media (max-width: 440px) {
             .login-card { width: calc(100% - 32px); padding: 36px 28px 32px; }
         }
     </style>
+    <script>
+        // Apply saved theme before render
+        if (localStorage.getItem('theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    </script>
 </head>
 <body>
     <div class="login-card">
+        <button class="btn-theme" onclick="toggleTheme()" id="themeBtn"></button>
         <div class="logo">
             <h1>Car<span>Scraper</span></h1>
         </div>
@@ -138,6 +180,23 @@
         </form>
     </div>
     <script>
+        function updateThemeIcon() {
+            const btn = document.getElementById('themeBtn');
+            btn.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '\u263E' : '\u263C';
+        }
+        function toggleTheme() {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+            }
+            updateThemeIcon();
+        }
+        updateThemeIcon();
+
         if (window.location.search.includes('expired')) {
             localStorage.removeItem('auth_token');
             localStorage.removeItem('auth_username');
@@ -162,7 +221,7 @@
             errEl.style.display = 'none';
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            const btn = e.target.querySelector('button');
+            const btn = e.target.querySelector('button[type="submit"]');
             btn.disabled = true; btn.textContent = 'Signing in...';
             try {
                 const resp = await fetch('/api/v1/auth/login', {

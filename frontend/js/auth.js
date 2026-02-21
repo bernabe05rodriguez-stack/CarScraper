@@ -1,4 +1,30 @@
-// Auth helper - manages username display + logout
+// Auth + Theme helper
+
+const Theme = {
+    init() {
+        const saved = localStorage.getItem('theme');
+        if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    },
+    toggle() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (isDark) {
+            document.documentElement.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'light');
+        } else {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+        }
+        // Update icon
+        const btn = document.querySelector('.btn-theme');
+        if (btn) btn.textContent = isDark ? '\u263C' : '\u263E';
+    },
+    getIcon() {
+        return document.documentElement.getAttribute('data-theme') === 'dark' ? '\u263E' : '\u263C';
+    }
+};
+
+// Apply theme immediately (before DOM renders)
+Theme.init();
 
 const Auth = {
     getToken() {
@@ -16,22 +42,22 @@ const Auth = {
         window.location.href = '/login';
     },
 
-    // Render user info + logout in navbar
-    renderNavUser() {
+    renderNavRight() {
         const nav = document.querySelector('.navbar');
-        if (!nav || nav.querySelector('.navbar-user')) return;
+        if (!nav || nav.querySelector('.navbar-right')) return;
 
-        const userEl = document.createElement('div');
-        userEl.className = 'navbar-user';
-        userEl.innerHTML = `
+        const el = document.createElement('div');
+        el.className = 'navbar-right';
+        el.innerHTML = `
+            <button class="btn-theme" onclick="Theme.toggle()" title="Toggle theme">${Theme.getIcon()}</button>
             <span class="navbar-username">${this.getUsername()}</span>
             <button class="btn-logout" onclick="Auth.logout()">Logout</button>
         `;
-        nav.appendChild(userEl);
+        nav.appendChild(el);
     },
 };
 
-// Render nav user on protected pages
+// Render nav on protected pages
 if (!window.location.pathname.startsWith('/login')) {
-    document.addEventListener('DOMContentLoaded', () => Auth.renderNavUser());
+    document.addEventListener('DOMContentLoaded', () => Auth.renderNavRight());
 }
