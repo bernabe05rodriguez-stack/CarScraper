@@ -12,3 +12,4 @@ openpyxl
 pydantic
 pydantic-settings
 python-dotenv
+itsdangerous

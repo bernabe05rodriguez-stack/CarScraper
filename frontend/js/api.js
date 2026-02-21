@@ -3,8 +3,25 @@
 const API = {
     BASE: '/api/v1',
 
+    _headers() {
+        const h = { 'Content-Type': 'application/json' };
+        const token = localStorage.getItem('auth_token');
+        if (token) h['Authorization'] = 'Bearer ' + token;
+        return h;
+    },
+
+    _handleUnauth(resp) {
+        if (resp.status === 401) {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_username');
+            window.location.href = '/login';
+            throw new Error('Session expired');
+        }
+    },
+
     async get(path) {
-        const resp = await fetch(this.BASE + path);
+        const resp = await fetch(this.BASE + path, { headers: this._headers() });
+        this._handleUnauth(resp);
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({ detail: resp.statusText }));
             throw new Error(err.detail || 'Request failed');
@@ -15,9 +32,10 @@ const API = {
     async post(path, data) {
         const resp = await fetch(this.BASE + path, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: this._headers(),
             body: JSON.stringify(data),
         });
+        this._handleUnauth(resp);
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({ detail: resp.statusText }));
             throw new Error(err.detail || 'Request failed');
@@ -64,6 +82,7 @@ const API = {
 
     // Export
     getExportUrl(jobId) {
-        return this.BASE + '/export/' + jobId;
+        const token = localStorage.getItem('auth_token');
+        return this.BASE + '/export/' + jobId + (token ? '?token=' + token : '');
     },
 };

@@ -13,6 +13,7 @@ from backend.config import settings
 from backend.db.database import init_db
 from backend.db.crud import seed_platforms
 from backend.db.database import async_session
+from backend.auth import router as auth_router, AuthMiddleware
 from backend.api.routes_auctions import router as auctions_router
 from backend.api.routes_jobs import router as jobs_router
 from backend.api.routes_export import router as export_router
@@ -38,9 +39,12 @@ async def lifespan(app: FastAPI):
     scheduler_task.cancel()
 
 
-app = FastAPI(title="CarScraper", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="CarScraper", version="0.3.0", lifespan=lifespan)
 
 logger = logging.getLogger(__name__)
+
+# Auth middleware - must be added before routes
+app.add_middleware(AuthMiddleware)
 
 
 @app.exception_handler(Exception)
@@ -67,6 +71,7 @@ async def health_check():
 
 
 # API routes
+app.include_router(auth_router)
 app.include_router(auctions_router)
 app.include_router(jobs_router)
 app.include_router(export_router)
@@ -99,6 +104,11 @@ async def get_models(make: str):
 frontend_dir = settings.FRONTEND_DIR
 app.mount("/css", StaticFiles(directory=str(frontend_dir / "css")), name="css")
 app.mount("/js", StaticFiles(directory=str(frontend_dir / "js")), name="js")
+
+
+@app.get("/login")
+async def serve_login():
+    return FileResponse(str(frontend_dir / "login.html"))
 
 
 @app.get("/")
