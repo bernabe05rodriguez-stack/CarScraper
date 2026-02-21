@@ -1,4 +1,4 @@
-// Auth helper - manages token in localStorage
+// Auth helper - manages username display + logout
 
 const Auth = {
     getToken() {
@@ -9,24 +9,11 @@ const Auth = {
         return localStorage.getItem('auth_username') || '';
     },
 
-    isLoggedIn() {
-        return !!this.getToken();
-    },
-
-    logout() {
+    async logout() {
+        try { await fetch('/api/v1/auth/logout', { method: 'POST' }); } catch (_) {}
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_username');
         window.location.href = '/login';
-    },
-
-    // Call on every protected page load
-    check() {
-        if (!this.isLoggedIn()) {
-            window.location.href = '/login';
-            return false;
-        }
-        this.renderNavUser();
-        return true;
     },
 
     // Render user info + logout in navbar
@@ -44,7 +31,7 @@ const Auth = {
     },
 };
 
-// Auto-check auth on page load (except login page)
+// Render nav user on protected pages
 if (!window.location.pathname.startsWith('/login')) {
-    document.addEventListener('DOMContentLoaded', () => Auth.check());
+    document.addEventListener('DOMContentLoaded', () => Auth.renderNavUser());
 }

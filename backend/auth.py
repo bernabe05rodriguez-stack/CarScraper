@@ -37,8 +37,24 @@ class LoginRequest(BaseModel):
 async def login(req: LoginRequest):
     if req.username == settings.AUTH_USERNAME and req.password == settings.AUTH_PASSWORD:
         token = create_token(req.username)
-        return {"token": token, "username": req.username}
+        resp = JSONResponse(content={"token": token, "username": req.username})
+        resp.set_cookie(
+            key="auth_token",
+            value=token,
+            max_age=settings.AUTH_TOKEN_MAX_AGE,
+            httponly=True,
+            samesite="lax",
+            secure=True,
+        )
+        return resp
     return JSONResponse(status_code=401, content={"detail": "Invalid username or password"})
+
+
+@router.post("/logout")
+async def logout():
+    resp = JSONResponse(content={"ok": True})
+    resp.delete_cookie("auth_token")
+    return resp
 
 
 @router.post("/check")
@@ -66,11 +82,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if path in PUBLIC_PATHS or any(path.startswith(p) for p in PUBLIC_PREFIXES):
             return await call_next(request)
 
-        # Check token from header or query param (for file downloads)
+        # Check token from header, cookie, or query param
         token = None
         auth_header = request.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
+        if not token:
+            token = request.cookies.get("auth_token")
         if not token:
             token = request.query_params.get("token")
 
