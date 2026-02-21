@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Price Comparison - CarScraper</title>
+    <title>Comparison - CarScraper</title>
     <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
@@ -19,10 +19,9 @@
     </nav>
 
     <div class="container">
-        <!-- Search Form -->
         <div class="card">
             <h2 class="card-title">Price Comparison: USA vs Germany</h2>
-            <p style="color: var(--text-light); margin-bottom: 1rem;">Compare average prices between USA and German markets to identify arbitrage opportunities. Uses historical data from previous searches.</p>
+            <p style="color: var(--text-muted); margin-bottom: 16px; font-size: 13px;">Compare average prices between USA and German markets to identify arbitrage opportunities. Uses historical data from previous searches.</p>
             <form id="compare-form">
                 <div class="form-grid">
                     <div class="form-group">
@@ -56,24 +55,18 @@
             </form>
         </div>
 
-        <!-- Results -->
         <div id="results-section" class="results-section">
-            <!-- Comparison Panels -->
             <div class="comparison-grid" id="comparison-grid">
-                <!-- USA Panel -->
                 <div class="card comparison-panel" id="usa-panel">
                     <h3 class="card-title">USA Market</h3>
                     <div id="usa-stats"></div>
                 </div>
-
-                <!-- Germany Panel -->
                 <div class="card comparison-panel" id="germany-panel">
                     <h3 class="card-title">Germany Market</h3>
                     <div id="germany-stats"></div>
                 </div>
             </div>
 
-            <!-- Arbitrage Summary -->
             <div class="card" id="arbitrage-card">
                 <h3 class="card-title">Arbitrage Analysis</h3>
                 <div id="arbitrage-summary"></div>

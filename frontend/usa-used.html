@@ -19,7 +19,6 @@
     </nav>
 
     <div class="container">
-        <!-- Search Form -->
         <div class="card">
             <h2 class="card-title">Search USA Used Cars</h2>
             <form id="search-form">
@@ -49,14 +48,14 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="keyword">Keyword in Description</label>
+                        <label for="keyword">Keyword</label>
                         <input type="text" id="keyword" placeholder='e.g. "manual", "low miles"'>
                     </div>
                 </div>
 
-                <div style="margin-top: 1rem;">
-                    <label style="font-size: 0.85rem; font-weight: 600; color: var(--primary);">Platforms</label>
-                    <div class="checkbox-group" style="margin-top: 0.3rem;">
+                <div class="platforms-section">
+                    <div class="platforms-label">Platforms</div>
+                    <div class="checkbox-group">
                         <label class="checkbox-label">
                             <input type="checkbox" name="platform" value="autotrader" checked>
                             Autotrader
@@ -75,7 +74,6 @@
             </form>
         </div>
 
-        <!-- Progress -->
         <div class="card progress-section" id="progress-section">
             <h2 class="card-title">Searching...</h2>
             <div class="progress-bar-container">
@@ -84,9 +82,7 @@
             <p class="progress-text" id="progress-text">Starting search...</p>
         </div>
 
-        <!-- Results -->
         <div class="results-section" id="results-section">
-            <!-- Stats -->
             <div class="card">
                 <h2 class="card-title">Results Summary</h2>
                 <div class="stats-bar" id="stats-bar"></div>
@@ -95,7 +91,6 @@
                 </div>
             </div>
 
-            <!-- Table -->
             <div class="card">
                 <div class="table-container">
                     <table id="results-table">
