@@ -1,18 +1,9 @@
 import re
 import logging
 
-import httpx
-from bs4 import BeautifulSoup
-
 from backend.scrapers.base import BaseScraper
 
 logger = logging.getLogger(__name__)
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-}
 
 
 class CarsComScraper(BaseScraper):
@@ -53,30 +44,45 @@ class CarsComScraper(BaseScraper):
 
     def _parse_listing_card(self, card) -> dict | None:
         try:
-            # Title
-            title_el = card.select_one("h2 a, .vehicle-card-link, a.vehicle-card-visited-tracking-link")
+            # Title - multiple selector strategies
+            title_el = card.select_one("h2 a, a.vehicle-card-link")
             if not title_el:
                 title_el = card.select_one("a[href*='/vehicledetail/']")
+            if not title_el:
+                # Try any h2 inside the card
+                h2 = card.select_one("h2")
+                if h2:
+                    title_el = h2
             if not title_el:
                 return None
 
             title = title_el.get_text(strip=True)
+            if not title:
+                return None
             year, make, model, trim = self._parse_title(title)
 
             # URL
-            url = title_el.get("href", "")
+            url = ""
+            if title_el.name == "a":
+                url = title_el.get("href", "")
+            else:
+                link = card.select_one("a[href*='/vehicledetail/']")
+                if link:
+                    url = link.get("href", "")
             if url and not url.startswith("http"):
                 url = f"{self.BASE_URL}{url}"
 
             # Price
             price = None
-            price_el = card.select_one(".primary-price, [class*='primary-price'], .listing-row__price")
+            price_el = card.select_one(".primary-price, span.primary-price, [class*='primary-price']")
+            if not price_el:
+                price_el = card.select_one("[class*='price']")
             if price_el:
                 price = self._parse_price(price_el.get_text(strip=True))
 
             # Mileage
             mileage = None
-            mileage_el = card.select_one("[class*='mileage'], .mileage")
+            mileage_el = card.select_one(".mileage, [class*='mileage']")
             if mileage_el:
                 text = mileage_el.get_text(strip=True)
                 nums = re.findall(r"[\d,]+", text)
@@ -85,13 +91,13 @@ class CarsComScraper(BaseScraper):
 
             # Dealer
             dealer = None
-            dealer_el = card.select_one("[class*='dealer-name'], .dealer-name")
+            dealer_el = card.select_one(".dealer-name, [class*='dealer-name']")
             if dealer_el:
                 dealer = dealer_el.get_text(strip=True)
 
             # Location
             location = None
-            loc_el = card.select_one("[class*='miles-from'], .miles-from")
+            loc_el = card.select_one(".miles-from, [class*='miles-from']")
             if loc_el:
                 location = loc_el.get_text(strip=True)
 
@@ -152,29 +158,59 @@ class CarsComScraper(BaseScraper):
     ) -> list[dict]:
         all_listings = []
 
-        async with httpx.AsyncClient() as client:
-            for page in range(1, max_pages + 1):
-                url = self._build_search_url(make, model, year_from, year_to, keyword, page)
-                logger.info(f"[Cars.com] Page {page}: {url}")
+        try:
+            from playwright.async_api import async_playwright
+            from playwright_stealth import stealth_async
+        except ImportError as e:
+            logger.error(f"[Cars.com] Playwright not available: {e}")
+            return []
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                viewport={"width": 1920, "height": 1080},
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                locale="en-US",
+            )
+            page = await context.new_page()
+            await stealth_async(page)
+
+            for page_num in range(1, max_pages + 1):
+                search_url = self._build_search_url(make, model, year_from, year_to, keyword, page_num)
+                logger.info(f"[Cars.com] Page {page_num}: {search_url}")
 
                 try:
-                    resp = await self._retry(
-                        self._fetch_page, client, url,
-                    )
+                    await page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
                 except Exception as e:
-                    logger.error(f"[Cars.com] Failed to fetch page {page}: {e}")
-                    break
+                    logger.warning(f"[Cars.com] Navigation timeout page {page_num}: {e}")
 
-                soup = BeautifulSoup(resp, "lxml")
+                await page.wait_for_timeout(3000)
 
-                # Find listing cards
+                from bs4 import BeautifulSoup
+                html = await page.content()
+                soup = BeautifulSoup(html, "lxml")
+
+                # Find vehicle cards
                 cards = soup.select(
                     ".vehicle-card, [class*='vehicle-card'], "
-                    ".listing-row, [data-qa='results-card']"
+                    "[data-qa='results-card'], .listing-row"
                 )
 
                 if not cards:
-                    logger.info(f"[Cars.com] No results on page {page}")
+                    # Fallback: find links to vehicle detail pages
+                    links = soup.find_all("a", href=re.compile(r"/vehicledetail/"))
+                    seen = set()
+                    for link in links:
+                        href = link.get("href", "")
+                        if href in seen:
+                            continue
+                        seen.add(href)
+                        parent = link.find_parent(["div", "section", "article"])
+                        if parent:
+                            cards.append(parent)
+
+                if not cards:
+                    logger.info(f"[Cars.com] No results on page {page_num}")
                     break
 
                 for card in cards:
@@ -182,17 +218,15 @@ class CarsComScraper(BaseScraper):
                     if parsed:
                         all_listings.append(parsed)
 
-                logger.info(f"[Cars.com] Page {page}: {len(cards)} cards (total: {len(all_listings)})")
+                logger.info(f"[Cars.com] Page {page_num}: {len(cards)} cards (total: {len(all_listings)})")
 
                 if on_progress:
-                    await on_progress(page, max_pages, len(all_listings))
+                    await on_progress(page_num, max_pages, len(all_listings))
 
-                if page < max_pages:
+                if page_num < max_pages:
                     await self._delay()
 
-        return all_listings
+            logger.info(f"[Cars.com] Total listings found: {len(all_listings)}")
+            await browser.close()
 
-    async def _fetch_page(self, client: httpx.AsyncClient, url: str) -> str:
-        resp = await client.get(url, headers=HEADERS, follow_redirects=True, timeout=30)
-        resp.raise_for_status()
-        return resp.text
+        return all_listings

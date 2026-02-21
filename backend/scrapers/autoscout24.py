@@ -1,8 +1,8 @@
 import re
+import json
 import logging
 
 import httpx
-from bs4 import BeautifulSoup
 
 from backend.scrapers.base import BaseScraper
 
@@ -53,60 +53,68 @@ class AutoScout24Scraper(BaseScraper):
         param_str = "&".join(f"{k}={v}" for k, v in params.items())
         return f"{self.BASE_URL}{path}?{param_str}"
 
-    def _parse_listing_card(self, card) -> dict | None:
+    def _parse_json_listing(self, item: dict) -> dict | None:
         try:
-            # Title
-            title_el = card.select_one("h2 a, a[data-item-name='detail-page-link'], .ListItem_title__ndA4s a")
-            if not title_el:
-                title_el = card.select_one("a[href*='/angebote/']")
-            if not title_el:
-                return None
+            vehicle = item.get("vehicle", {})
+            tracking = item.get("tracking", {})
+            location = item.get("location", {})
+            seller = item.get("seller", {})
 
-            title = title_el.get_text(strip=True)
-            year, make, model, trim = self._parse_title(title)
+            make = vehicle.get("make")
+            model = vehicle.get("model")
+            trim = vehicle.get("modelVersionInput")
+
+            # Price from tracking (numeric string)
+            price = None
+            price_str = tracking.get("price")
+            if price_str:
+                try:
+                    price = float(price_str)
+                except (ValueError, TypeError):
+                    pass
+            if price is None:
+                price_formatted = item.get("price", {}).get("priceFormatted", "")
+                price = self._parse_price_eur(price_formatted)
+
+            # Mileage from tracking (numeric string)
+            mileage = None
+            mileage_str = tracking.get("mileage")
+            if mileage_str:
+                try:
+                    mileage = int(mileage_str)
+                except (ValueError, TypeError):
+                    pass
+
+            # Year from firstRegistration "MM-YYYY"
+            year = None
+            reg = tracking.get("firstRegistration", "")
+            year_match = re.search(r"(\d{4})", reg)
+            if year_match:
+                year = int(year_match.group(1))
 
             # URL
-            url = title_el.get("href", "")
+            url = item.get("url", "")
             if url and not url.startswith("http"):
                 url = f"{self.BASE_URL}{url}"
 
-            # Price (EUR)
-            price = None
-            price_el = card.select_one("[data-testid='price-label'], .ListItem_price__APlgs, [class*='Price']")
-            if price_el:
-                price = self._parse_price_eur(price_el.get_text(strip=True))
-
-            # Mileage
-            mileage = None
-            details = card.select("[data-testid='VehicleDetailTable'] span, .VehicleDetailTable_item__4n35N")
-            for d in details:
-                text = d.get_text(strip=True).lower()
-                if "km" in text:
-                    nums = re.findall(r"[\d.]+", text.replace(".", ""))
-                    if nums:
-                        mileage = int(nums[0])
-                if not year and re.match(r"\d{2}/\d{4}", text):
-                    year_match = re.search(r"/(\d{4})", text)
-                    if year_match:
-                        year = int(year_match.group(1))
-
-            # Dealer
-            dealer = None
-            dealer_el = card.select_one("[data-testid='seller-info'], .SellerInfo_name__uhRbP")
-            if dealer_el:
-                dealer = dealer_el.get_text(strip=True)[:100]
-
             # Location
-            location = None
-            loc_el = card.select_one("[data-testid='seller-address'], .SellerInfo_address__leRMu")
-            if loc_el:
-                location = loc_el.get_text(strip=True)
+            loc_parts = []
+            if location.get("zip"):
+                loc_parts.append(location["zip"])
+            if location.get("city"):
+                loc_parts.append(location["city"])
+            loc_str = " ".join(loc_parts) if loc_parts else None
 
             # Image
-            img_url = None
-            img_el = card.select_one("img")
-            if img_el:
-                img_url = img_el.get("src") or img_el.get("data-src")
+            images = item.get("images", [])
+            img_url = images[0] if images else None
+
+            # Dealer
+            dealer = seller.get("companyName")
+
+            title = f"{make} {model}"
+            if trim:
+                title += f" {trim}"
 
             return {
                 "year": year,
@@ -117,7 +125,7 @@ class AutoScout24Scraper(BaseScraper):
                 "mileage": mileage,
                 "days_on_market": None,
                 "dealer_name": dealer,
-                "location": location,
+                "location": loc_str,
                 "description": title,
                 "url": url,
                 "image_url": img_url,
@@ -125,20 +133,11 @@ class AutoScout24Scraper(BaseScraper):
                 "currency": "EUR",
             }
         except Exception as e:
-            logger.warning(f"[AutoScout24] Error parsing card: {e}")
+            logger.warning(f"[AutoScout24] Error parsing JSON listing: {e}")
             return None
 
-    def _parse_title(self, title: str) -> tuple:
-        match = re.match(r"(\d{4})\s+(\S+)\s+(\S+)\s*(.*)", title)
-        if match:
-            return int(match.group(1)), match.group(2), match.group(3), match.group(4).strip() or None
-        match = re.match(r"(\S+)\s+(\S+)\s*(.*)", title)
-        if match:
-            return None, match.group(1), match.group(2), match.group(3).strip() or None
-        return None, None, title, None
-
     def _parse_price_eur(self, text: str) -> float | None:
-        text = text.replace("\u20AC", "").replace("EUR", "").strip()
+        text = text.replace("\u20AC", "").replace("EUR", "").replace("€", "").strip()
         text = text.replace(".", "").replace(",", ".")
         nums = re.findall(r"[\d.]+", text)
         if nums:
@@ -147,6 +146,30 @@ class AutoScout24Scraper(BaseScraper):
             except ValueError:
                 return None
         return None
+
+    def _extract_listings_from_json(self, html: str) -> list[dict]:
+        match = re.search(r'<script[^>]*id="__NEXT_DATA__"[^>]*>(.+?)</script>', html)
+        if not match:
+            return []
+        try:
+            data = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            return []
+
+        # Navigate to find listings array
+        def find_listings(obj, depth=0):
+            if depth > 6:
+                return None
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if k == "listings" and isinstance(v, list) and len(v) > 0:
+                        return v
+                    result = find_listings(v, depth + 1)
+                    if result:
+                        return result
+            return None
+
+        return find_listings(data) or []
 
     async def _fetch_page(self, client: httpx.AsyncClient, url: str) -> str:
         resp = await client.get(url, headers=HEADERS, follow_redirects=True, timeout=30)
@@ -176,26 +199,19 @@ class AutoScout24Scraper(BaseScraper):
                     logger.error(f"[AutoScout24] Failed to fetch page {page}: {e}")
                     break
 
-                soup = BeautifulSoup(html, "lxml")
-                cards = soup.select(
-                    "[data-testid='listing'], article.cldt-summary-full-item, "
-                    ".ListItem_wrapper__TxHWu, [class*='ListItem']"
-                )
+                # Parse JSON from __NEXT_DATA__
+                json_listings = self._extract_listings_from_json(html)
 
-                if not cards:
-                    links = soup.find_all("a", href=re.compile(r"/angebote/"))
-                    cards = [link.find_parent(["div", "li", "article"]) or link for link in links]
-
-                if not cards:
+                if not json_listings:
                     logger.info(f"[AutoScout24] No results on page {page}")
                     break
 
-                for card in cards:
-                    parsed = self._parse_listing_card(card)
+                for item in json_listings:
+                    parsed = self._parse_json_listing(item)
                     if parsed:
                         all_listings.append(parsed)
 
-                logger.info(f"[AutoScout24] Page {page}: {len(cards)} cards (total: {len(all_listings)})")
+                logger.info(f"[AutoScout24] Page {page}: {len(json_listings)} listings (total: {len(all_listings)})")
 
                 if on_progress:
                     await on_progress(page, max_pages, len(all_listings))

@@ -1,7 +1,5 @@
 import re
 import logging
-from datetime import datetime, timezone
-from urllib.parse import quote_plus
 
 import httpx
 from bs4 import BeautifulSoup
@@ -21,87 +19,79 @@ class BaTScraper(BaseScraper):
     PLATFORM_NAME = "Bring a Trailer"
     BASE_URL = "https://bringatrailer.com"
 
-    def _build_search_url(
-        self,
-        make: str,
-        model: str | None,
-        year_from: int | None,
-        year_to: int | None,
-        keyword: str | None,
-        page: int,
-    ) -> str:
-        # BaT search URL structure: /search/<query>/
-        # Results are loaded via AJAX at /wp-json/bat/v1/search
-        query_parts = []
-        if make:
-            query_parts.append(make.lower())
+    def _build_search_url(self, make: str, model: str | None) -> str:
+        # BaT uses model pages like /bmw/m3/ for browsing listings
+        make_slug = make.lower().replace(" ", "-")
         if model:
-            query_parts.append(model.lower())
-        if keyword:
-            query_parts.append(keyword.lower())
-
-        query = "+".join(query_parts)
-
-        params = {
-            "search": query,
-            "page": page,
-        }
-        if year_from:
-            params["yearFrom"] = year_from
-        if year_to:
-            params["yearTo"] = year_to
-
-        param_str = "&".join(f"{k}={v}" for k, v in params.items())
-        return f"{self.BASE_URL}/auctions/?{param_str}"
+            model_slug = model.lower().replace(" ", "-")
+            return f"{self.BASE_URL}/{make_slug}/{model_slug}/"
+        return f"{self.BASE_URL}/{make_slug}/"
 
     def _parse_listing_card(self, card) -> dict | None:
         try:
-            # BaT listing cards have specific CSS classes
-            title_el = card.select_one("h3 a, .listing-card-title a, a.listing-card-link")
+            # Title from h3 > a
+            title_el = card.select_one("h3 a")
             if not title_el:
-                title_el = card.select_one("a[href*='/listing/']")
+                title_el = card.select_one(".content-main h3 a")
+            if not title_el:
+                # Try image overlay link as fallback
+                title_el = card.select_one("a.image-overlay")
             if not title_el:
                 return None
 
-            title = title_el.get_text(strip=True)
+            title = title_el.get_text(strip=True) or title_el.get("title", "")
             url = title_el.get("href", "")
+            if not url:
+                # Get URL from image overlay
+                overlay = card.select_one("a.image-overlay")
+                if overlay:
+                    url = overlay.get("href", "")
             if url and not url.startswith("http"):
                 url = self.BASE_URL + url
 
-            # Parse year, make, model from title
             year, make, model = self._parse_title(title)
 
-            # Price - look for sold price or bid amount
+            # Price/bid from .bid-formatted.bold (e.g., "USD $10,000")
             price = None
-            price_el = card.select_one(".listing-card-result, .listing-card-price, .auction-value")
+            price_el = card.select_one(".bid-formatted.bold, .bid-formatted")
             if price_el:
-                price_text = price_el.get_text(strip=True)
-                price = self._parse_price(price_text)
+                price = self._parse_price(price_el.get_text(strip=True))
+
+            # Bid label (shows "Bid:" for live, "Sold:" for completed)
+            bid_label = ""
+            label_el = card.select_one(".bid-label")
+            if label_el:
+                bid_label = label_el.get_text(strip=True).lower()
+
+            # Sold text from item-results div
+            sold_text = ""
+            result_el = card.select_one(".item-results")
+            if result_el:
+                sold_text = result_el.get_text(strip=True).lower()
+
+            # Determine sold status
+            is_sold = False
+            if "sold" in sold_text and "not sold" not in sold_text:
+                is_sold = True
+            elif "sold" in bid_label:
+                is_sold = True
+
+            # No reserve tag
+            has_no_reserve = card.select_one(".item-tag-noreserve") is not None
 
             # Image
             img_url = None
-            img_el = card.select_one("img")
+            img_el = card.select_one(".thumbnail img")
             if img_el:
                 img_url = img_el.get("src") or img_el.get("data-src")
 
-            # Bid count
+            # Bid count (not available in card, only on listing page)
             bid_count = None
-            bids_el = card.select_one(".listing-card-bids, .bid-count")
-            if bids_el:
-                bids_text = bids_el.get_text(strip=True)
-                nums = re.findall(r"\d+", bids_text)
-                if nums:
-                    bid_count = int(nums[0])
 
-            # Determine if sold
-            is_sold = True
-            result_text = card.get_text(strip=True).lower()
-            if "not sold" in result_text or "bid to" in result_text:
-                is_sold = False
+            description = title
+            if has_no_reserve:
+                description += " [No Reserve]"
 
-            # NOTE: BaT listing cards show only the final result price.
-            # For sold items, this is the sold price. For unsold, it's the highest bid.
-            # The starting bid is only available on individual listing pages.
             return {
                 "year": year,
                 "make": make,
@@ -112,21 +102,21 @@ class BaTScraper(BaseScraper):
                 "url": url,
                 "image_url": img_url,
                 "is_sold": is_sold,
-                "description": title,
+                "description": description,
             }
         except Exception as e:
             logger.warning(f"[BaT] Error parsing card: {e}")
             return None
 
     def _parse_title(self, title: str) -> tuple[int | None, str | None, str | None]:
-        # Typical: "2019 BMW M3 Competition"
         match = re.match(r"(\d{4})\s+(\S+)\s+(.*)", title)
         if match:
             return int(match.group(1)), match.group(2), match.group(3).strip()
         return None, None, title
 
     def _parse_price(self, text: str) -> float | None:
-        text = text.replace(",", "").replace("$", "").strip()
+        # Handle "USD $10,000" or "$10,000" or "10,000"
+        text = text.replace(",", "").replace("$", "").replace("USD", "").strip()
         nums = re.findall(r"[\d.]+", text)
         if nums:
             try:
@@ -140,72 +130,6 @@ class BaTScraper(BaseScraper):
         resp.raise_for_status()
         return resp.text
 
-    async def _fetch_ajax_results(
-        self,
-        client: httpx.AsyncClient,
-        make: str,
-        model: str | None,
-        year_from: int | None,
-        year_to: int | None,
-        keyword: str | None,
-        page: int,
-    ) -> list[dict]:
-        # BaT uses AJAX endpoint for search results
-        query_parts = [make]
-        if model:
-            query_parts.append(model)
-        if keyword:
-            query_parts.append(keyword)
-        query = " ".join(query_parts)
-
-        params = {
-            "s": query,
-            "page": str(page),
-        }
-        if year_from:
-            params["year_from"] = str(year_from)
-        if year_to:
-            params["year_to"] = str(year_to)
-
-        # Try the AJAX search results page
-        url = f"{self.BASE_URL}/auctions/"
-        resp = await client.get(url, params=params, headers=HEADERS, follow_redirects=True, timeout=30)
-        resp.raise_for_status()
-
-        soup = BeautifulSoup(resp.text, "lxml")
-        listings = []
-
-        # Look for listing items in various possible containers
-        cards = soup.select(
-            ".auction-item, .listing-card, .auctions-item, "
-            "li.result, .search-result-item, article.listing"
-        )
-
-        # Fallback: look for any links to /listing/
-        if not cards:
-            # Try broader selectors
-            cards = soup.select("[data-listing], .auctions-list > *, .results-list > *")
-
-        if not cards:
-            # Last resort: find all listing links and wrap them
-            links = soup.find_all("a", href=re.compile(r"/listing/"))
-            seen_urls = set()
-            for link in links:
-                href = link.get("href", "")
-                if href in seen_urls:
-                    continue
-                seen_urls.add(href)
-                parent = link.find_parent(["li", "div", "article"])
-                if parent:
-                    cards.append(parent)
-
-        for card in cards:
-            parsed = self._parse_listing_card(card)
-            if parsed:
-                listings.append(parsed)
-
-        return listings
-
     async def search(
         self,
         make: str,
@@ -217,28 +141,60 @@ class BaTScraper(BaseScraper):
         on_progress: callable = None,
     ) -> list[dict]:
         all_listings = []
+
         async with httpx.AsyncClient() as client:
-            for page in range(1, max_pages + 1):
-                try:
-                    listings = await self._retry(
-                        self._fetch_ajax_results,
-                        client, make, model, year_from, year_to, keyword, page,
-                    )
-                except Exception as e:
-                    logger.error(f"[BaT] Failed to fetch page {page}: {e}")
-                    break
+            # Fetch the model page which has static listing cards
+            search_url = self._build_search_url(make, model)
+            logger.info(f"[BaT] Fetching: {search_url}")
 
-                if not listings:
-                    logger.info(f"[BaT] No results on page {page}, stopping")
-                    break
+            try:
+                html = await self._retry(self._fetch_page, client, search_url)
+            except Exception as e:
+                logger.error(f"[BaT] Failed to fetch page: {e}")
+                return []
 
-                all_listings.extend(listings)
-                logger.info(f"[BaT] Page {page}: {len(listings)} listings (total: {len(all_listings)})")
+            soup = BeautifulSoup(html, "lxml")
 
-                if on_progress:
-                    await on_progress(page, max_pages, len(all_listings))
+            # Parse static listing cards (listing-card-separate = server-rendered)
+            cards = soup.select(".listing-card.listing-card-separate")
 
-                if page < max_pages:
-                    await self._delay()
+            if not cards:
+                # Fallback: any div with data-listing_id
+                cards = soup.select("div[data-listing_id]")
+
+            if not cards:
+                # Last resort: find all links to /listing/ and get parents
+                links = soup.find_all("a", href=re.compile(r"/listing/"))
+                seen_urls = set()
+                for link in links:
+                    href = link.get("href", "")
+                    if href in seen_urls:
+                        continue
+                    seen_urls.add(href)
+                    parent = link.find_parent(["div", "li", "article"])
+                    if parent and parent.get("class"):
+                        cards.append(parent)
+
+            logger.info(f"[BaT] Found {len(cards)} listing cards")
+
+            for card in cards:
+                parsed = self._parse_listing_card(card)
+                if parsed:
+                    # Filter by year range
+                    if year_from and parsed.get("year") and parsed["year"] < year_from:
+                        continue
+                    if year_to and parsed.get("year") and parsed["year"] > year_to:
+                        continue
+                    # Filter by keyword
+                    if keyword:
+                        desc = (parsed.get("description") or "").lower()
+                        if keyword.lower() not in desc:
+                            continue
+                    all_listings.append(parsed)
+
+            logger.info(f"[BaT] Total listings: {len(all_listings)}")
+
+            if on_progress:
+                await on_progress(1, 1, len(all_listings))
 
         return all_listings

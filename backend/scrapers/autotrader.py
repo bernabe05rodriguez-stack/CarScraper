@@ -1,4 +1,5 @@
 import re
+import json
 import logging
 
 from backend.scrapers.base import BaseScraper
@@ -19,15 +20,14 @@ class AutotraderScraper(BaseScraper):
         keyword: str | None,
         page: int,
     ) -> str:
-        # Autotrader URL pattern
-        path = f"/cars-for-sale/all-cars"
+        path = "/cars-for-sale/all-cars"
         if make:
             path += f"/{make.lower().replace(' ', '-')}"
         if model:
             path += f"/{model.lower().replace(' ', '-')}"
 
         params = {
-            "searchRadius": "0",  # nationwide
+            "searchRadius": "0",
             "isNewSearch": "true",
             "sortBy": "relevance",
             "numRecords": "25",
@@ -48,13 +48,10 @@ class AutotraderScraper(BaseScraper):
             title = item.get("title", "")
             year, make, model, trim = self._parse_title(title)
 
-            price = item.get("pricingDetail", {}).get("primary", None)
+            price = item.get("pricingDetail", {}).get("primary")
             if isinstance(price, str):
                 price = self._parse_price(price)
-            elif isinstance(price, (int, float)):
-                pass
-            else:
-                # Try alternative price fields
+            elif not isinstance(price, (int, float)):
                 price = item.get("price") or item.get("listPrice")
                 if isinstance(price, str):
                     price = self._parse_price(price)
@@ -85,14 +82,16 @@ class AutotraderScraper(BaseScraper):
 
     def _parse_html_listing(self, card) -> dict | None:
         try:
-            # Title
-            title_el = card.select_one("h2, .inventory-listing-title, [data-cmp='inventoryListingTitle']")
+            # Title - try multiple selectors
+            title_el = card.select_one("h2, h3, [data-cmp='inventoryListingTitle']")
             if not title_el:
                 title_el = card.select_one("a[href*='/cars-for-sale/']")
             if not title_el:
                 return None
 
             title = title_el.get_text(strip=True)
+            if not title:
+                return None
             year, make, model, trim = self._parse_title(title)
 
             # URL
@@ -104,18 +103,19 @@ class AutotraderScraper(BaseScraper):
 
             # Price
             price = None
-            price_el = card.select_one(".first-price, [data-cmp='firstPrice'], .primary-price")
+            price_el = card.select_one(".first-price, [data-cmp='firstPrice'], .primary-price, [class*='price']")
             if price_el:
                 price = self._parse_price(price_el.get_text(strip=True))
 
             # Mileage
             mileage = None
-            mileage_el = card.select_one("[class*='mileage'], .item-card-specifications")
-            if mileage_el:
-                text = mileage_el.get_text(strip=True)
-                nums = re.findall(r"[\d,]+", text.replace(",", ""))
-                if nums:
-                    mileage = int(nums[0])
+            for el in card.select("[class*='mileage'], [class*='specifications'], li"):
+                text = el.get_text(strip=True).lower()
+                if "mi" in text or "mile" in text:
+                    nums = re.findall(r"[\d,]+", text)
+                    if nums:
+                        mileage = int(nums[0].replace(",", ""))
+                        break
 
             # Dealer
             dealer = None
@@ -150,7 +150,6 @@ class AutotraderScraper(BaseScraper):
             return None
 
     def _parse_title(self, title: str) -> tuple:
-        # "2019 BMW M3 Competition Package" -> (2019, "BMW", "M3", "Competition Package")
         match = re.match(r"(\d{4})\s+(\S+)\s+(\S+)\s*(.*)", title)
         if match:
             return int(match.group(1)), match.group(2), match.group(3), match.group(4).strip() or None
@@ -168,6 +167,30 @@ class AutotraderScraper(BaseScraper):
             except ValueError:
                 return None
         return None
+
+    def _extract_next_data(self, html: str) -> list[dict]:
+        """Try to extract listings from __NEXT_DATA__ JSON (if Autotrader uses Next.js)."""
+        match = re.search(r'<script[^>]*id="__NEXT_DATA__"[^>]*>(.+?)</script>', html)
+        if not match:
+            return []
+        try:
+            data = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            return []
+
+        def find_listings(obj, depth=0):
+            if depth > 6:
+                return None
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if k in ("listings", "results", "vehicles") and isinstance(v, list) and len(v) > 0:
+                        return v
+                    result = find_listings(v, depth + 1)
+                    if result:
+                        return result
+            return None
+
+        return find_listings(data) or []
 
     async def search(
         self,
@@ -201,14 +224,16 @@ class AutotraderScraper(BaseScraper):
             # Intercept API responses
             async def handle_response(response):
                 url = response.url
-                if "/rest/searchresults" in url or "/api/" in url:
+                if any(p in url for p in ["/rest/searchresults", "/api/", "/rest/lsc/", "searchResults"]):
                     try:
                         ct = response.headers.get("content-type", "")
                         if "json" in ct:
                             data = await response.json()
                             if isinstance(data, dict):
-                                items = (data.get("listings") or data.get("results")
-                                         or data.get("vehicles") or data.get("items"))
+                                items = (
+                                    data.get("listings") or data.get("results")
+                                    or data.get("vehicles") or data.get("items")
+                                )
                                 if items and isinstance(items, list):
                                     captured_api_data.extend(items)
                     except Exception:
@@ -221,36 +246,60 @@ class AutotraderScraper(BaseScraper):
                 logger.info(f"[Autotrader] Page {page_num}: {search_url}")
 
                 try:
-                    await page.goto(search_url, wait_until="networkidle", timeout=30000)
+                    await page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
                 except Exception as e:
                     logger.warning(f"[Autotrader] Navigation timeout page {page_num}: {e}")
 
-                await page.wait_for_timeout(3000)
+                await page.wait_for_timeout(5000)
 
-                # Check API data first
+                # Strategy 1: Check API intercepted data
                 if captured_api_data:
-                    new_count = len(captured_api_data) - len(all_listings)
-                    for item in captured_api_data[len(all_listings):]:
+                    new_items = captured_api_data[len(all_listings):]
+                    for item in new_items:
                         parsed = self._parse_listing(item)
                         if parsed:
                             all_listings.append(parsed)
-                else:
-                    # Fallback: parse HTML
-                    from bs4 import BeautifulSoup
-                    html = await page.content()
-                    soup = BeautifulSoup(html, "lxml")
-                    cards = soup.select(
-                        "[data-cmp='inventoryListing'], .inventory-listing, "
-                        "[class*='listing-card'], .vehicle-card"
-                    )
-                    if not cards:
-                        logger.info(f"[Autotrader] No results on page {page_num}")
-                        break
+                    if all_listings:
+                        logger.info(f"[Autotrader] API data: {len(all_listings)} listings")
+                        if on_progress:
+                            await on_progress(page_num, max_pages, len(all_listings))
+                        if page_num < max_pages:
+                            await self._delay()
+                        continue
 
-                    for card in cards:
-                        parsed = self._parse_html_listing(card)
+                # Strategy 2: Try __NEXT_DATA__ JSON
+                html = await page.content()
+                json_listings = self._extract_next_data(html)
+                if json_listings:
+                    for item in json_listings:
+                        parsed = self._parse_listing(item)
                         if parsed:
                             all_listings.append(parsed)
+                    logger.info(f"[Autotrader] JSON data: {len(json_listings)} listings")
+                    if on_progress:
+                        await on_progress(page_num, max_pages, len(all_listings))
+                    if page_num < max_pages:
+                        await self._delay()
+                    continue
+
+                # Strategy 3: Parse HTML
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(html, "lxml")
+                cards = soup.select(
+                    "[data-cmp='inventoryListing'], .inventory-listing, "
+                    "[class*='listing-card'], .vehicle-card, "
+                    "[data-testid='listing']"
+                )
+                if not cards:
+                    logger.info(f"[Autotrader] No results on page {page_num}")
+                    break
+
+                for card in cards:
+                    parsed = self._parse_html_listing(card)
+                    if parsed:
+                        all_listings.append(parsed)
+
+                logger.info(f"[Autotrader] HTML: {len(cards)} cards (total: {len(all_listings)})")
 
                 if on_progress:
                     await on_progress(page_num, max_pages, len(all_listings))

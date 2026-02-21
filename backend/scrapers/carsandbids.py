@@ -1,7 +1,6 @@
 import re
 import json
 import logging
-from datetime import datetime, timezone
 
 from backend.scrapers.base import BaseScraper
 
@@ -35,41 +34,39 @@ class CarsAndBidsScraper(BaseScraper):
             title = item.get("title", "")
             year, make, model = self._parse_title(title)
 
-            # Determine sold status first
             is_sold = item.get("status", "").lower() in ("sold", "completed")
 
-            # Parse sold_price, handling text values like "Not Sold" or "Bid to $X"
-            sold_price_raw = item.get("sold_price") or item.get("price")
+            sold_price_raw = item.get("sold_price") or item.get("price") or item.get("currentBid")
             if isinstance(sold_price_raw, str):
                 if "not sold" in sold_price_raw.lower() or "bid to" in sold_price_raw.lower():
                     is_sold = False
-                    sold_price = self._parse_price(sold_price_raw)  # extract bid amount
-                else:
-                    sold_price = self._parse_price(sold_price_raw)
+                sold_price = self._parse_price(sold_price_raw)
             else:
                 sold_price = sold_price_raw
 
-            bid_count = item.get("bid_count") or item.get("bids")
+            bid_count = item.get("bid_count") or item.get("bids") or item.get("bidCount")
             if isinstance(bid_count, str):
                 nums = re.findall(r"\d+", bid_count)
                 bid_count = int(nums[0]) if nums else None
 
-            url = item.get("url", "")
+            url = item.get("url") or item.get("link", "")
             if url and not url.startswith("http"):
                 url = f"{self.BASE_URL}{url}"
+
+            img = item.get("image") or item.get("photo_url") or item.get("thumbnail") or item.get("primaryPhotoUrl")
 
             return {
                 "year": year or item.get("year"),
                 "make": make or item.get("make"),
                 "model": model or item.get("model"),
                 "sold_price": sold_price if is_sold else None,
-                "starting_bid": sold_price if not is_sold else None,  # bid amount for unsold
+                "starting_bid": sold_price if not is_sold else None,
                 "bid_count": bid_count,
                 "url": url,
-                "image_url": item.get("image") or item.get("photo_url") or item.get("thumbnail"),
+                "image_url": img,
                 "is_sold": is_sold,
                 "description": title,
-                "auction_end_date": item.get("end_date"),
+                "auction_end_date": item.get("end_date") or item.get("endDate"),
             }
         except Exception as e:
             logger.warning(f"[Cars&Bids] Error parsing API item: {e}")
@@ -77,13 +74,21 @@ class CarsAndBidsScraper(BaseScraper):
 
     def _parse_html_listing(self, card) -> dict | None:
         try:
-            title_el = card.select_one("a h3, .auction-title a, a.hero-link")
-            if not title_el:
-                title_el = card.select_one("a[href*='/auctions/']")
+            # Title - multiple selector strategies
+            title_el = (
+                card.select_one("a h3")
+                or card.select_one(".auction-title a, .auction-title")
+                or card.select_one("a.hero-link")
+                or card.select_one("h2 a, h3 a")
+                or card.select_one("a[href*='/auctions/']")
+            )
             if not title_el:
                 return None
 
             title = title_el.get_text(strip=True)
+            if not title:
+                return None
+
             url = title_el.get("href", "")
             if not url:
                 parent_a = title_el.find_parent("a")
@@ -94,24 +99,31 @@ class CarsAndBidsScraper(BaseScraper):
 
             year, make, model = self._parse_title(title)
 
+            # Price
             price = None
-            price_el = card.select_one(".auction-result, .sold-price, .current-bid")
+            price_el = (
+                card.select_one(".auction-result, .sold-price, .current-bid")
+                or card.select_one("[class*='price'], [class*='bid']")
+            )
             if price_el:
                 price = self._parse_price(price_el.get_text(strip=True))
 
+            # Image
             img_url = None
             img_el = card.select_one("img")
             if img_el:
                 img_url = img_el.get("src") or img_el.get("data-src")
 
+            # Bid count
             bid_count = None
-            bids_el = card.select_one(".bid-number, .bids")
+            bids_el = card.select_one(".bid-number, .bids, [class*='bid-count']")
             if bids_el:
                 nums = re.findall(r"\d+", bids_el.get_text(strip=True))
                 if nums:
                     bid_count = int(nums[0])
 
-            is_sold = "sold" in card.get_text(strip=True).lower()
+            card_text = card.get_text(strip=True).lower()
+            is_sold = "sold" in card_text and "not sold" not in card_text
 
             return {
                 "year": year,
@@ -158,15 +170,20 @@ class CarsAndBidsScraper(BaseScraper):
             page = await context.new_page()
             await stealth_async(page)
 
-            # Intercept API calls to capture JSON data
+            # Intercept API calls
             async def handle_response(response):
                 url = response.url
-                if "/api/" in url or "/search" in url or "/auctions" in url:
+                if any(p in url for p in ["/api/", "/search", "/auctions", "graphql"]):
                     try:
-                        if "application/json" in (response.headers.get("content-type", "")):
+                        ct = response.headers.get("content-type", "")
+                        if "json" in ct:
                             data = await response.json()
                             if isinstance(data, dict):
-                                items = data.get("results") or data.get("auctions") or data.get("data") or data.get("items")
+                                items = (
+                                    data.get("results") or data.get("auctions")
+                                    or data.get("data") or data.get("items")
+                                    or data.get("content")
+                                )
                                 if items and isinstance(items, list):
                                     captured_api_data.extend(items)
                             elif isinstance(data, list):
@@ -182,7 +199,6 @@ class CarsAndBidsScraper(BaseScraper):
                 query_parts.append(model)
             query = " ".join(query_parts)
 
-            # Navigate to past results/search page
             search_url = f"{self.BASE_URL}/past-auctions/?q={query}"
             if year_from:
                 search_url += f"&yearFrom={year_from}"
@@ -192,50 +208,84 @@ class CarsAndBidsScraper(BaseScraper):
             logger.info(f"[Cars&Bids] Navigating to {search_url}")
 
             try:
-                await page.goto(search_url, wait_until="networkidle", timeout=30000)
+                await page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
             except Exception as e:
                 logger.warning(f"[Cars&Bids] Navigation timeout (continuing): {e}")
 
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
-            # If we captured API data, use that
+            # Strategy 1: API intercepted data
             if captured_api_data:
-                logger.info(f"[Cars&Bids] Captured {len(captured_api_data)} items via API interception")
+                logger.info(f"[Cars&Bids] Captured {len(captured_api_data)} items via API")
                 for item in captured_api_data:
                     parsed = self._parse_api_listing(item)
                     if parsed:
                         all_listings.append(parsed)
-            else:
-                # Fallback: parse the rendered HTML
+
+            # Strategy 2: Try __NEXT_DATA__ JSON
+            if not all_listings:
+                html = await page.content()
+                match = re.search(r'<script[^>]*id="__NEXT_DATA__"[^>]*>(.+?)</script>', html)
+                if match:
+                    try:
+                        data = json.loads(match.group(1))
+                        def find_auctions(obj, depth=0):
+                            if depth > 6:
+                                return None
+                            if isinstance(obj, dict):
+                                for k, v in obj.items():
+                                    if k in ("auctions", "results", "listings") and isinstance(v, list) and len(v) > 0:
+                                        return v
+                                    result = find_auctions(v, depth + 1)
+                                    if result:
+                                        return result
+                            return None
+                        items = find_auctions(data) or []
+                        for item in items:
+                            parsed = self._parse_api_listing(item)
+                            if parsed:
+                                all_listings.append(parsed)
+                        if items:
+                            logger.info(f"[Cars&Bids] JSON data: {len(items)} items")
+                    except json.JSONDecodeError:
+                        pass
+
+            # Strategy 3: Parse HTML
+            if not all_listings:
                 from bs4 import BeautifulSoup
                 html = await page.content()
                 soup = BeautifulSoup(html, "lxml")
 
                 cards = soup.select(
                     ".auction-card, .past-auction, .search-result, "
-                    "[class*='auction'], [class*='listing']"
+                    "[class*='auction-card'], [class*='AuctionCard'], "
+                    "a[href*='/auctions/']"
                 )
 
                 if not cards:
-                    cards = soup.find_all("a", href=re.compile(r"/auctions/"))
-                    cards = [
-                        link.find_parent(["div", "li", "article"]) or link
-                        for link in cards
-                    ]
+                    links = soup.find_all("a", href=re.compile(r"/auctions/"))
+                    seen = set()
+                    for link in links:
+                        href = link.get("href", "")
+                        if href in seen or not href:
+                            continue
+                        seen.add(href)
+                        parent = link.find_parent(["div", "li", "article"])
+                        if parent:
+                            cards.append(parent)
 
                 for card in cards:
                     parsed = self._parse_html_listing(card)
                     if parsed:
                         all_listings.append(parsed)
 
-            # Try to load more pages by scrolling
+            # Try to load more pages
             for page_num in range(2, max_pages + 1):
                 if not all_listings:
                     break
 
                 await self._delay()
 
-                # Try clicking "Load More" or scrolling
                 try:
                     load_more = page.locator(
                         "button:has-text('Load More'), "
@@ -248,7 +298,6 @@ class CarsAndBidsScraper(BaseScraper):
                         await load_more.first.click()
                         await page.wait_for_timeout(3000)
 
-                        # Check if new API data was captured
                         new_items = captured_api_data[prev_count:]
                         if new_items:
                             for item in new_items:
@@ -268,7 +317,7 @@ class CarsAndBidsScraper(BaseScraper):
             logger.info(f"[Cars&Bids] Total listings found: {len(all_listings)}")
             await browser.close()
 
-        # Filter by keyword if provided
+        # Filter by keyword
         if keyword and all_listings:
             keyword_lower = keyword.lower()
             all_listings = [
