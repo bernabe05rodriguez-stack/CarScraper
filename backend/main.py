@@ -1,12 +1,13 @@
 import asyncio
 import json
 import logging
+import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from backend.config import settings
 from backend.db.database import init_db
@@ -38,6 +39,32 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="CarScraper", version="0.2.0", lifespan=lifespan)
+
+logger = logging.getLogger(__name__)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    logger.error(f"Unhandled error on {request.method} {request.url.path}: {exc}\n{tb}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "traceback": tb},
+    )
+
+
+@app.get("/api/v1/health")
+async def health_check():
+    """Check DB connectivity and table existence."""
+    from sqlalchemy import text
+    try:
+        async with async_session() as db:
+            result = await db.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public'"))
+            tables = [row[0] for row in result.fetchall()]
+        return {"status": "ok", "database": "connected", "tables": tables}
+    except Exception as e:
+        return {"status": "error", "database": str(e)}
+
 
 # API routes
 app.include_router(auctions_router)
