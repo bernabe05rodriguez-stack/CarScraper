@@ -33,9 +33,9 @@ class AuctionListing(Base):
     description = Column(Text)
     url = Column(String(1000))
     image_url = Column(String(1000))
-    auction_end_date = Column(DateTime)
+    auction_end_date = Column(DateTime(timezone=True))
     is_sold = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         Index("ix_auction_make_model", "make", "model"),
@@ -62,10 +62,10 @@ class UsedCarListing(Base):
     description = Column(Text)
     url = Column(String(1000))
     image_url = Column(String(1000))
-    listing_date = Column(DateTime)
+    listing_date = Column(DateTime(timezone=True))
     is_active = Column(Boolean, default=True)
     currency = Column(String(10), default="USD")
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         Index("ix_usedcar_make_model", "make", "model"),
@@ -86,8 +86,8 @@ class ScrapeJob(Base):
     search_params = Column(Text)  # JSON
     job_type = Column(String(50), default="auction")  # "auction" or "used_car"
     error_message = Column(Text)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    completed_at = Column(DateTime)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at = Column(DateTime(timezone=True))
 
 
 class SearchCache(Base):
@@ -96,8 +96,8 @@ class SearchCache(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     cache_key = Column(String(500), unique=True, nullable=False, index=True)
     job_id = Column(Integer, ForeignKey("scrape_jobs.id"))
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime(timezone=True), nullable=False)
 
 
 class WatchList(Base):
@@ -111,5 +111,5 @@ class WatchList(Base):
     platforms = Column(String(500))  # comma-separated
     interval_hours = Column(Integer, default=12)
     is_active = Column(Boolean, default=True)
-    last_run_at = Column(DateTime)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_run_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
