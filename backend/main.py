@@ -106,31 +106,34 @@ app.mount("/css", StaticFiles(directory=str(frontend_dir / "css")), name="css")
 app.mount("/js", StaticFiles(directory=str(frontend_dir / "js")), name="js")
 
 
+NO_CACHE = {"Cache-Control": "no-store"}
+
+
 @app.get("/login")
 async def serve_login():
-    return FileResponse(str(frontend_dir / "login.html"))
+    return FileResponse(str(frontend_dir / "login.html"), headers=NO_CACHE)
 
 
 @app.get("/")
 async def serve_index():
-    return FileResponse(str(frontend_dir / "index.html"))
+    return FileResponse(str(frontend_dir / "index.html"), headers=NO_CACHE)
 
 
 @app.get("/auctions")
 async def serve_auctions():
-    return FileResponse(str(frontend_dir / "auctions.html"))
+    return FileResponse(str(frontend_dir / "auctions.html"), headers=NO_CACHE)
 
 
 @app.get("/usa-used")
 async def serve_usa_used():
-    return FileResponse(str(frontend_dir / "usa-used.html"))
+    return FileResponse(str(frontend_dir / "usa-used.html"), headers=NO_CACHE)
 
 
 @app.get("/germany-used")
 async def serve_germany_used():
-    return FileResponse(str(frontend_dir / "germany-used.html"))
+    return FileResponse(str(frontend_dir / "germany-used.html"), headers=NO_CACHE)
 
 
 @app.get("/comparison")
 async def serve_comparison():
-    return FileResponse(str(frontend_dir / "comparison.html"))
+    return FileResponse(str(frontend_dir / "comparison.html"), headers=NO_CACHE)

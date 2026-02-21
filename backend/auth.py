@@ -81,4 +81,4 @@ class AuthMiddleware(BaseHTTPMiddleware):
         is_api = path.startswith("/api/")
         if is_api:
             return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
-        return RedirectResponse(url="/login", status_code=302)
+        return RedirectResponse(url="/login?expired=1", status_code=302)

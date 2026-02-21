@@ -34,6 +34,12 @@
         </div>
     </div>
     <script>
+        // If redirected here by middleware, clear stale tokens immediately (sync)
+        if (window.location.search.includes('expired')) {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_username');
+            history.replaceState(null, '', '/login');
+        }
         (async () => {
             const token = localStorage.getItem('auth_token');
             if (!token) return;
