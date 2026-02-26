@@ -1,7 +1,7 @@
 import re
 import logging
 
-from backend.scrapers.base import BaseScraper
+from backend.scrapers.base import BaseScraper, PLAYWRIGHT_ARGS
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +145,7 @@ class KleinanzeigenScraper(BaseScraper):
         year_from: int | None = None,
         year_to: int | None = None,
         keyword: str | None = None,
+        time_filter: str | None = None,
         max_pages: int = 5,
         on_progress: callable = None,
     ) -> list[dict]:
@@ -158,7 +159,7 @@ class KleinanzeigenScraper(BaseScraper):
             return []
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(headless=True, args=PLAYWRIGHT_ARGS)
             context = await browser.new_context(
                 viewport={"width": 1920, "height": 1080},
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",

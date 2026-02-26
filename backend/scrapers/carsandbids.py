@@ -2,7 +2,7 @@ import re
 import json
 import logging
 
-from backend.scrapers.base import BaseScraper
+from backend.scrapers.base import BaseScraper, PLAYWRIGHT_ARGS
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +12,18 @@ class CarsAndBidsScraper(BaseScraper):
     BASE_URL = "https://carsandbids.com"
 
     def _parse_title(self, title: str) -> tuple[int | None, str | None, str | None]:
-        match = re.match(r"(\d{4})\s+(\S+)\s+(.*)", title)
-        if match:
-            return int(match.group(1)), match.group(2), match.group(3).strip()
-        return None, None, title
+        """Extract year, make, model — search year anywhere in title."""
+        year_match = re.search(r'\b(19\d{2}|20\d{2})\b', title)
+        if not year_match:
+            return None, None, title
+        year = int(year_match.group(1))
+        after_year = title[year_match.end():].strip()
+        parts = after_year.split(None, 1)
+        if len(parts) >= 2:
+            return year, parts[0], parts[1].strip()
+        elif len(parts) == 1:
+            return year, parts[0], None
+        return year, None, None
 
     def _parse_price(self, text: str) -> float | None:
         if not text:
@@ -148,6 +156,7 @@ class CarsAndBidsScraper(BaseScraper):
         year_from: int | None = None,
         year_to: int | None = None,
         keyword: str | None = None,
+        time_filter: str | None = None,
         max_pages: int = 10,
         on_progress: callable = None,
     ) -> list[dict]:
@@ -162,7 +171,7 @@ class CarsAndBidsScraper(BaseScraper):
             return []
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(headless=True, args=PLAYWRIGHT_ARGS)
             context = await browser.new_context(
                 viewport={"width": 1920, "height": 1080},
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -317,21 +326,21 @@ class CarsAndBidsScraper(BaseScraper):
             logger.info(f"[Cars&Bids] Total listings found: {len(all_listings)}")
             await browser.close()
 
-        # Filter by keyword
+        # Filter by keyword (search in title AND URL slug)
         if keyword and all_listings:
             keyword_lower = keyword.lower()
             all_listings = [
                 l for l in all_listings
                 if keyword_lower in (l.get("description", "") or "").lower()
+                or keyword_lower in (l.get("url", "") or "").lower()
             ]
 
-        # Filter by year range
+        # Filter by year range — EXCLUDE listings with unknown year
         if year_from or year_to:
             filtered = []
             for l in all_listings:
                 y = l.get("year")
                 if y is None:
-                    filtered.append(l)
                     continue
                 if year_from and y < year_from:
                     continue
@@ -339,5 +348,17 @@ class CarsAndBidsScraper(BaseScraper):
                     continue
                 filtered.append(l)
             all_listings = filtered
+
+        # Filter by time period
+        time_cutoff = self._compute_time_cutoff(time_filter)
+        if time_cutoff and all_listings:
+            before_count = len(all_listings)
+            all_listings = [
+                l for l in all_listings
+                if l.get("auction_end_date") is None
+                or (isinstance(l["auction_end_date"], str) and True)  # keep string dates we can't parse
+                or l["auction_end_date"] >= time_cutoff
+            ]
+            logger.info(f"[Cars&Bids] Time filter ({time_filter}): {before_count} -> {len(all_listings)}")
 
         return all_listings

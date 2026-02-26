@@ -183,6 +183,7 @@ class AutoScout24Scraper(BaseScraper):
         year_from: int | None = None,
         year_to: int | None = None,
         keyword: str | None = None,
+        time_filter: str | None = None,
         max_pages: int = 5,
         on_progress: callable = None,
     ) -> list[dict]:

@@ -128,6 +128,7 @@ async def _run_scrape_job(
                         year_from=search_params.get("year_from"),
                         year_to=search_params.get("year_to"),
                         keyword=search_params.get("keyword"),
+                        time_filter=search_params.get("time_filter"),
                         on_progress=on_progress,
                     )
 

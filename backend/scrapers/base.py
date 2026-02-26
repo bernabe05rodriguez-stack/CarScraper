@@ -2,10 +2,17 @@ import asyncio
 import random
 import logging
 from abc import ABC, abstractmethod
+from datetime import datetime, timedelta, timezone
 
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
+
+PLAYWRIGHT_ARGS = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+]
 
 
 class BaseScraper(ABC):
@@ -13,6 +20,20 @@ class BaseScraper(ABC):
     MIN_DELAY: int = settings.MIN_SCRAPE_DELAY
     MAX_DELAY: int = settings.MAX_SCRAPE_DELAY
     MAX_RETRIES: int = 3
+
+    @staticmethod
+    def _compute_time_cutoff(time_filter: str | None) -> datetime | None:
+        """Convert time_filter string to a cutoff datetime."""
+        if not time_filter or time_filter == "all":
+            return None
+        now = datetime.now(timezone.utc)
+        mapping = {
+            "5m": timedelta(days=150),
+            "1y": timedelta(days=365),
+            "2y": timedelta(days=730),
+        }
+        delta = mapping.get(time_filter)
+        return (now - delta) if delta else None
 
     @abstractmethod
     async def search(
@@ -22,10 +43,11 @@ class BaseScraper(ABC):
         year_from: int | None = None,
         year_to: int | None = None,
         keyword: str | None = None,
+        time_filter: str | None = None,
         max_pages: int = 10,
         on_progress: callable = None,
     ) -> list[dict]:
-        """Search for auction listings. Returns list of listing dicts."""
+        """Search for listings. Returns list of listing dicts."""
         pass
 
     async def _delay(self):

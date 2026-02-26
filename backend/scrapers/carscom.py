@@ -1,7 +1,7 @@
 import re
 import logging
 
-from backend.scrapers.base import BaseScraper
+from backend.scrapers.base import BaseScraper, PLAYWRIGHT_ARGS
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +153,7 @@ class CarsComScraper(BaseScraper):
         year_from: int | None = None,
         year_to: int | None = None,
         keyword: str | None = None,
+        time_filter: str | None = None,
         max_pages: int = 5,
         on_progress: callable = None,
     ) -> list[dict]:
@@ -166,7 +167,7 @@ class CarsComScraper(BaseScraper):
             return []
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(headless=True, args=PLAYWRIGHT_ARGS)
             context = await browser.new_context(
                 viewport={"width": 1920, "height": 1080},
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -184,7 +185,25 @@ class CarsComScraper(BaseScraper):
                 except Exception as e:
                     logger.warning(f"[Cars.com] Navigation timeout page {page_num}: {e}")
 
-                await page.wait_for_timeout(3000)
+                # Wait for JS rendering
+                await page.wait_for_timeout(8000)
+
+                # Bot detection check
+                page_title = await page.title()
+                current_url = page.url
+                logger.info(f"[Cars.com] Page {page_num} loaded: title='{page_title}' url={current_url}")
+                if any(w in page_title.lower() for w in ["captcha", "blocked", "access denied", "security"]):
+                    logger.warning(f"[Cars.com] Bot detection on page {page_num}, stopping")
+                    break
+
+                # Smart wait for listing elements
+                try:
+                    await page.wait_for_selector(
+                        ".vehicle-card, [data-qa='results-card'], .listing-row",
+                        timeout=10000,
+                    )
+                except Exception:
+                    logger.debug(f"[Cars.com] No listing selector appeared on page {page_num}")
 
                 from bs4 import BeautifulSoup
                 html = await page.content()
