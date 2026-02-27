@@ -15,6 +15,24 @@ PLAYWRIGHT_ARGS = [
 ]
 
 
+async def apply_stealth(page):
+    """Apply stealth to a Playwright page. Compatible with playwright-stealth v1 and v2."""
+    try:
+        from playwright_stealth import stealth_async
+        await stealth_async(page)
+        return
+    except ImportError:
+        pass
+    try:
+        from playwright_stealth import Stealth
+        stealth = Stealth()
+        await stealth.apply_stealth_async(page)
+        return
+    except (ImportError, AttributeError):
+        pass
+    logger.warning("playwright-stealth not available or incompatible, skipping stealth")
+
+
 class BaseScraper(ABC):
     PLATFORM_NAME: str = ""
     MIN_DELAY: int = settings.MIN_SCRAPE_DELAY

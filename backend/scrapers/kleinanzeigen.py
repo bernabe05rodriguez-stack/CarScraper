@@ -1,7 +1,7 @@
 import re
 import logging
 
-from backend.scrapers.base import BaseScraper, PLAYWRIGHT_ARGS
+from backend.scrapers.base import BaseScraper, PLAYWRIGHT_ARGS, apply_stealth
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +153,6 @@ class KleinanzeigenScraper(BaseScraper):
 
         try:
             from playwright.async_api import async_playwright
-            from playwright_stealth import stealth_async
         except ImportError as e:
             logger.error(f"[Kleinanzeigen] Playwright not available: {e}")
             return []
@@ -166,7 +165,7 @@ class KleinanzeigenScraper(BaseScraper):
                 locale="de-DE",
             )
             page = await context.new_page()
-            await stealth_async(page)
+            await apply_stealth(page)
 
             for page_num in range(1, max_pages + 1):
                 search_url = self._build_search_url(make, model, year_from, year_to, keyword, page_num)

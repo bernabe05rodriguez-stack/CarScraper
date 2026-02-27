@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import httpx
 from bs4 import BeautifulSoup
 
-from backend.scrapers.base import BaseScraper, PLAYWRIGHT_ARGS
+from backend.scrapers.base import BaseScraper, PLAYWRIGHT_ARGS, apply_stealth
 
 logger = logging.getLogger(__name__)
 
@@ -281,7 +281,6 @@ class BaTScraper(BaseScraper):
 
         try:
             from playwright.async_api import async_playwright
-            from playwright_stealth import stealth_async
         except ImportError:
             logger.warning("[BaT] Playwright not available, using static fallback")
             all_listings = await self._search_static(
@@ -299,7 +298,7 @@ class BaTScraper(BaseScraper):
                 user_agent=HEADERS["User-Agent"],
             )
             page = await context.new_page()
-            await stealth_async(page)
+            await apply_stealth(page)
 
             search_url = self._build_search_url(make, model)
             logger.info(f"[BaT] Navigating to {search_url}")

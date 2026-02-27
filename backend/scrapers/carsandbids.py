@@ -2,7 +2,7 @@ import re
 import json
 import logging
 
-from backend.scrapers.base import BaseScraper, PLAYWRIGHT_ARGS
+from backend.scrapers.base import BaseScraper, PLAYWRIGHT_ARGS, apply_stealth
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +165,6 @@ class CarsAndBidsScraper(BaseScraper):
 
         try:
             from playwright.async_api import async_playwright
-            from playwright_stealth import stealth_async
         except ImportError as e:
             logger.error(f"[Cars&Bids] Playwright not available: {e}")
             return []
@@ -177,7 +176,7 @@ class CarsAndBidsScraper(BaseScraper):
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             )
             page = await context.new_page()
-            await stealth_async(page)
+            await apply_stealth(page)
 
             # Intercept API calls
             async def handle_response(response):
