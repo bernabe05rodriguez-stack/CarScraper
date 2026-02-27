@@ -113,11 +113,17 @@ class AutotraderScraper(BaseScraper):
             if price_el:
                 price = self._parse_price(price_el.get_text(strip=True))
 
-            # Mileage
+            # Mileage - handle formats like "Competition42K mi", "56K mi", "12,345 mi"
             mileage = None
             for el in card.select("[class*='mileage'], [class*='specifications'], li"):
-                text = el.get_text(strip=True).lower()
-                if "mi" in text or "mile" in text:
+                text = el.get_text(strip=True)
+                if "mi" in text.lower() or "mile" in text.lower():
+                    # Try "42K mi" pattern first
+                    k_match = re.search(r'([\d,.]+)\s*[Kk]\s*mi', text)
+                    if k_match:
+                        mileage = int(float(k_match.group(1).replace(",", "")) * 1000)
+                        break
+                    # Try "12,345 mi" pattern
                     nums = re.findall(r"[\d,]+", text)
                     if nums:
                         mileage = int(nums[0].replace(",", ""))
@@ -156,10 +162,12 @@ class AutotraderScraper(BaseScraper):
             return None
 
     def _parse_title(self, title: str) -> tuple:
-        match = re.match(r"(\d{4})\s+(\S+)\s+(\S+)\s*(.*)", title)
+        # Strip common prefixes: "Used", "New", "Certified Pre-Owned", "CPO"
+        cleaned = re.sub(r'^(Used|New|Certified Pre-Owned|Certified|CPO)\s+', '', title, flags=re.IGNORECASE)
+        match = re.match(r"(\d{4})\s+(\S+)\s+(\S+)\s*(.*)", cleaned)
         if match:
             return int(match.group(1)), match.group(2), match.group(3), match.group(4).strip() or None
-        match = re.match(r"(\d{4})\s+(\S+)\s+(.*)", title)
+        match = re.match(r"(\d{4})\s+(\S+)\s+(.*)", cleaned)
         if match:
             return int(match.group(1)), match.group(2), match.group(3).strip(), None
         return None, None, title, None
@@ -238,7 +246,6 @@ class AutotraderScraper(BaseScraper):
                     f"{SCRAPER_API_BASE}"
                     f"?api_key={settings.SCRAPER_API_KEY}"
                     f"&url={quote_plus(target_url)}"
-                    f"&render=true"
                 )
                 logger.info(f"[Autotrader] ScraperAPI page {page_num}: {target_url}")
 
