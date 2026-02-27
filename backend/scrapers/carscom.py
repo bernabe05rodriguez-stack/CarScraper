@@ -1,9 +1,15 @@
 import re
 import logging
+from urllib.parse import quote_plus
 
+import httpx
+
+from backend.config import settings
 from backend.scrapers.base import BaseScraper, PLAYWRIGHT_ARGS, apply_stealth
 
 logger = logging.getLogger(__name__)
+
+SCRAPER_API_BASE = "http://api.scraperapi.com"
 
 
 class CarsComScraper(BaseScraper):
@@ -157,6 +163,99 @@ class CarsComScraper(BaseScraper):
         max_pages: int = 5,
         on_progress: callable = None,
     ) -> list[dict]:
+        if settings.SCRAPER_API_KEY:
+            return await self._search_via_api(
+                make, model, year_from, year_to, keyword, max_pages, on_progress,
+            )
+        return await self._search_playwright(
+            make, model, year_from, year_to, keyword, max_pages, on_progress,
+        )
+
+    async def _search_via_api(
+        self,
+        make: str,
+        model: str | None,
+        year_from: int | None,
+        year_to: int | None,
+        keyword: str | None,
+        max_pages: int,
+        on_progress: callable,
+    ) -> list[dict]:
+        """Search via ScraperAPI (handles anti-bot, renders JS)."""
+        all_listings = []
+        from bs4 import BeautifulSoup
+
+        async with httpx.AsyncClient(timeout=90) as client:
+            for page_num in range(1, max_pages + 1):
+                target_url = self._build_search_url(make, model, year_from, year_to, keyword, page_num)
+                api_url = (
+                    f"{SCRAPER_API_BASE}"
+                    f"?api_key={settings.SCRAPER_API_KEY}"
+                    f"&url={quote_plus(target_url)}"
+                    f"&render=true"
+                )
+                logger.info(f"[Cars.com] ScraperAPI page {page_num}: {target_url}")
+
+                try:
+                    resp = await client.get(api_url)
+                    if resp.status_code != 200:
+                        logger.warning(f"[Cars.com] ScraperAPI returned {resp.status_code}")
+                        break
+                    html = resp.text
+                except Exception as e:
+                    logger.error(f"[Cars.com] ScraperAPI request failed: {e}")
+                    break
+
+                soup = BeautifulSoup(html, "lxml")
+
+                cards = soup.select(
+                    ".vehicle-card, [class*='vehicle-card'], "
+                    "[data-qa='results-card'], .listing-row"
+                )
+
+                if not cards:
+                    links = soup.find_all("a", href=re.compile(r"/vehicledetail/"))
+                    seen = set()
+                    for link in links:
+                        href = link.get("href", "")
+                        if href in seen:
+                            continue
+                        seen.add(href)
+                        parent = link.find_parent(["div", "section", "article"])
+                        if parent:
+                            cards.append(parent)
+
+                if not cards:
+                    logger.info(f"[Cars.com] No results on page {page_num}")
+                    break
+
+                for card in cards:
+                    parsed = self._parse_listing_card(card)
+                    if parsed:
+                        all_listings.append(parsed)
+
+                logger.info(f"[Cars.com] Page {page_num}: {len(cards)} cards (total: {len(all_listings)})")
+
+                if on_progress:
+                    await on_progress(page_num, max_pages, len(all_listings))
+
+                if page_num < max_pages:
+                    await self._delay()
+
+        logger.info(f"[Cars.com] Total listings found: {len(all_listings)}")
+        return all_listings
+
+    async def _search_playwright(
+        self,
+        make: str,
+        model: str | None,
+        year_from: int | None,
+        year_to: int | None,
+        keyword: str | None,
+        max_pages: int,
+        on_progress: callable,
+    ) -> list[dict]:
+        """Fallback: Playwright-based scraping (may fail due to anti-bot)."""
         all_listings = []
 
         try:
@@ -184,10 +283,8 @@ class CarsComScraper(BaseScraper):
                 except Exception as e:
                     logger.warning(f"[Cars.com] Navigation timeout page {page_num}: {e}")
 
-                # Wait for JS rendering
                 await page.wait_for_timeout(8000)
 
-                # Bot detection check
                 page_title = await page.title()
                 current_url = page.url
                 logger.info(f"[Cars.com] Page {page_num} loaded: title='{page_title}' url={current_url}")
@@ -195,7 +292,6 @@ class CarsComScraper(BaseScraper):
                     logger.warning(f"[Cars.com] Bot detection on page {page_num}, stopping")
                     break
 
-                # Smart wait for listing elements
                 try:
                     await page.wait_for_selector(
                         ".vehicle-card, [data-qa='results-card'], .listing-row",
@@ -208,14 +304,12 @@ class CarsComScraper(BaseScraper):
                 html = await page.content()
                 soup = BeautifulSoup(html, "lxml")
 
-                # Find vehicle cards
                 cards = soup.select(
                     ".vehicle-card, [class*='vehicle-card'], "
                     "[data-qa='results-card'], .listing-row"
                 )
 
                 if not cards:
-                    # Fallback: find links to vehicle detail pages
                     links = soup.find_all("a", href=re.compile(r"/vehicledetail/"))
                     seen = set()
                     for link in links:

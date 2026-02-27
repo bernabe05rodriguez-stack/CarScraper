@@ -1,10 +1,16 @@
 import re
 import json
 import logging
+from urllib.parse import quote_plus
 
+import httpx
+
+from backend.config import settings
 from backend.scrapers.base import BaseScraper, PLAYWRIGHT_ARGS, apply_stealth
 
 logger = logging.getLogger(__name__)
+
+SCRAPER_API_BASE = "http://api.scraperapi.com"
 
 
 class AutotraderScraper(BaseScraper):
@@ -203,6 +209,95 @@ class AutotraderScraper(BaseScraper):
         max_pages: int = 5,
         on_progress: callable = None,
     ) -> list[dict]:
+        if settings.SCRAPER_API_KEY:
+            return await self._search_via_api(
+                make, model, year_from, year_to, keyword, max_pages, on_progress,
+            )
+        return await self._search_playwright(
+            make, model, year_from, year_to, keyword, max_pages, on_progress,
+        )
+
+    async def _search_via_api(
+        self,
+        make: str,
+        model: str | None,
+        year_from: int | None,
+        year_to: int | None,
+        keyword: str | None,
+        max_pages: int,
+        on_progress: callable,
+    ) -> list[dict]:
+        """Search via ScraperAPI (handles anti-bot, renders JS)."""
+        all_listings = []
+        from bs4 import BeautifulSoup
+
+        async with httpx.AsyncClient(timeout=90) as client:
+            for page_num in range(1, max_pages + 1):
+                target_url = self._build_search_url(make, model, year_from, year_to, keyword, page_num)
+                api_url = (
+                    f"{SCRAPER_API_BASE}"
+                    f"?api_key={settings.SCRAPER_API_KEY}"
+                    f"&url={quote_plus(target_url)}"
+                    f"&render=true"
+                )
+                logger.info(f"[Autotrader] ScraperAPI page {page_num}: {target_url}")
+
+                try:
+                    resp = await client.get(api_url)
+                    if resp.status_code != 200:
+                        logger.warning(f"[Autotrader] ScraperAPI returned {resp.status_code}")
+                        break
+                    html = resp.text
+                except Exception as e:
+                    logger.error(f"[Autotrader] ScraperAPI request failed: {e}")
+                    break
+
+                # Strategy 1: Try __NEXT_DATA__ JSON
+                json_listings = self._extract_next_data(html)
+                if json_listings:
+                    for item in json_listings:
+                        parsed = self._parse_listing(item)
+                        if parsed:
+                            all_listings.append(parsed)
+                    logger.info(f"[Autotrader] JSON data: {len(json_listings)} listings (page {page_num})")
+                else:
+                    # Strategy 2: Parse HTML cards
+                    soup = BeautifulSoup(html, "lxml")
+                    cards = soup.select(
+                        "[data-cmp='inventoryListing'], .inventory-listing, "
+                        "[class*='listing-card'], .vehicle-card, "
+                        "[data-testid='listing']"
+                    )
+                    if not cards:
+                        logger.info(f"[Autotrader] No results on page {page_num}")
+                        break
+
+                    for card in cards:
+                        parsed = self._parse_html_listing(card)
+                        if parsed:
+                            all_listings.append(parsed)
+                    logger.info(f"[Autotrader] HTML: {len(cards)} cards (page {page_num})")
+
+                if on_progress:
+                    await on_progress(page_num, max_pages, len(all_listings))
+
+                if page_num < max_pages:
+                    await self._delay()
+
+        logger.info(f"[Autotrader] Total listings found: {len(all_listings)}")
+        return all_listings
+
+    async def _search_playwright(
+        self,
+        make: str,
+        model: str | None,
+        year_from: int | None,
+        year_to: int | None,
+        keyword: str | None,
+        max_pages: int,
+        on_progress: callable,
+    ) -> list[dict]:
+        """Fallback: Playwright-based scraping (may fail due to anti-bot)."""
         all_listings = []
         captured_api_data = []
 
@@ -250,10 +345,8 @@ class AutotraderScraper(BaseScraper):
                 except Exception as e:
                     logger.warning(f"[Autotrader] Navigation timeout page {page_num}: {e}")
 
-                # Wait for JS rendering
                 await page.wait_for_timeout(8000)
 
-                # Bot detection check
                 page_title = await page.title()
                 current_url = page.url
                 logger.info(f"[Autotrader] Page {page_num} loaded: title='{page_title}' url={current_url}")
@@ -261,7 +354,6 @@ class AutotraderScraper(BaseScraper):
                     logger.warning(f"[Autotrader] Bot detection on page {page_num}, stopping")
                     break
 
-                # Smart wait for listing elements
                 try:
                     await page.wait_for_selector(
                         "[data-cmp='inventoryListing'], .inventory-listing, .vehicle-card, [data-testid='listing']",
@@ -270,7 +362,6 @@ class AutotraderScraper(BaseScraper):
                 except Exception:
                     logger.debug(f"[Autotrader] No listing selector appeared on page {page_num}")
 
-                # Strategy 1: Check API intercepted data
                 if captured_api_data:
                     new_items = captured_api_data[len(all_listings):]
                     for item in new_items:
@@ -285,7 +376,6 @@ class AutotraderScraper(BaseScraper):
                             await self._delay()
                         continue
 
-                # Strategy 2: Try __NEXT_DATA__ JSON
                 html = await page.content()
                 json_listings = self._extract_next_data(html)
                 if json_listings:
@@ -300,7 +390,6 @@ class AutotraderScraper(BaseScraper):
                         await self._delay()
                     continue
 
-                # Strategy 3: Parse HTML
                 from bs4 import BeautifulSoup
                 soup = BeautifulSoup(html, "lxml")
                 cards = soup.select(

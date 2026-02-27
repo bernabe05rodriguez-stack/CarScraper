@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     AUTH_PASSWORD: str = "admin57453"
     AUTH_SECRET_KEY: str = "carscraper-secret-key-change-in-production"
     AUTH_TOKEN_MAX_AGE: int = 86400  # 24 hours in seconds
+    SCRAPER_API_KEY: str = ""
 
     BASE_DIR: Path = Path(__file__).resolve().parent
     DATA_DIR: Path = BASE_DIR / "data"
