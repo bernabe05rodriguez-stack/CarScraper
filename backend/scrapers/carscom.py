@@ -9,7 +9,7 @@ from backend.scrapers.base import BaseScraper, PLAYWRIGHT_ARGS, apply_stealth
 
 logger = logging.getLogger(__name__)
 
-SCRAPER_API_BASE = "http://api.scraperapi.com"
+SCRAPER_API_BASE = "https://api.scraperapi.com"
 
 
 class CarsComScraper(BaseScraper):
@@ -187,7 +187,9 @@ class CarsComScraper(BaseScraper):
         all_listings = []
         from bs4 import BeautifulSoup
 
-        async with httpx.AsyncClient(timeout=90) as client:
+        logger.info(f"[Cars.com] Using ScraperAPI (key={settings.SCRAPER_API_KEY[:8]}...)")
+
+        async with httpx.AsyncClient(timeout=90, follow_redirects=True) as client:
             for page_num in range(1, max_pages + 1):
                 target_url = self._build_search_url(make, model, year_from, year_to, keyword, page_num)
                 api_url = (
@@ -200,10 +202,14 @@ class CarsComScraper(BaseScraper):
 
                 try:
                     resp = await client.get(api_url)
+                    logger.info(f"[Cars.com] ScraperAPI response: status={resp.status_code}, size={len(resp.text)} bytes")
                     if resp.status_code != 200:
-                        logger.warning(f"[Cars.com] ScraperAPI returned {resp.status_code}")
+                        logger.warning(f"[Cars.com] ScraperAPI returned {resp.status_code}: {resp.text[:200]}")
                         break
                     html = resp.text
+                    if len(html) < 1000:
+                        logger.warning(f"[Cars.com] ScraperAPI tiny response: {html[:200]}")
+                        break
                 except Exception as e:
                     logger.error(f"[Cars.com] ScraperAPI request failed: {e}")
                     break
