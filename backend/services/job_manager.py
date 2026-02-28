@@ -23,6 +23,7 @@ SCRAPER_MAP = {
     # USA used car platforms
     "autotrader": ("Autotrader", None, "used_car"),
     "carscom": ("Cars.com", None, "used_car"),
+    "cargurus": ("CarGurus", None, "used_car"),
     # Germany used car platforms
     "mobilede": ("Mobile.de", None, "used_car"),
     "autoscout24": ("AutoScout24", None, "used_car"),
@@ -34,12 +35,14 @@ def _get_scraper_map():
     """Lazy-load scraper classes to avoid circular imports."""
     from backend.scrapers.autotrader import AutotraderScraper
     from backend.scrapers.carscom import CarsComScraper
+    from backend.scrapers.cargurus import CarGurusScraper
     from backend.scrapers.mobilede import MobileDeScraper
     from backend.scrapers.autoscout24 import AutoScout24Scraper
     from backend.scrapers.kleinanzeigen import KleinanzeigenScraper
 
     SCRAPER_MAP["autotrader"] = ("Autotrader", AutotraderScraper, "used_car")
     SCRAPER_MAP["carscom"] = ("Cars.com", CarsComScraper, "used_car")
+    SCRAPER_MAP["cargurus"] = ("CarGurus", CarGurusScraper, "used_car")
     SCRAPER_MAP["mobilede"] = ("Mobile.de", MobileDeScraper, "used_car")
     SCRAPER_MAP["autoscout24"] = ("AutoScout24", AutoScout24Scraper, "used_car")
     SCRAPER_MAP["kleinanzeigen"] = ("eBay Kleinanzeigen", KleinanzeigenScraper, "used_car")

@@ -18,6 +18,7 @@ async def seed_platforms(db: AsyncSession):
         # USA used car platforms
         Platform(name="Autotrader", platform_type="used_car", region="USA", base_url="https://www.autotrader.com"),
         Platform(name="Cars.com", platform_type="used_car", region="USA", base_url="https://www.cars.com"),
+        Platform(name="CarGurus", platform_type="used_car", region="USA", base_url="https://www.cargurus.com"),
         # Germany used car platforms
         Platform(name="Mobile.de", platform_type="used_car", region="Germany", base_url="https://www.mobile.de"),
         Platform(name="AutoScout24", platform_type="used_car", region="Germany", base_url="https://www.autoscout24.de"),
